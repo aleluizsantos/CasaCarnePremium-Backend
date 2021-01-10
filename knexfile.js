@@ -19,13 +19,14 @@ module.exports = {
 
   production: {
     client: "postgres",
-    url: process.env.DATABASE_URL,
+    connection: process.env.DATABASE_URL,
     migrations: {
       directory: path.resolve(__dirname, "src", "database", "migrations"),
     },
     seeds: {
       directory: path.resolve(__dirname, "src", "database", "seeds"),
     },
+    debug: true,
   },
 
   staging: {
