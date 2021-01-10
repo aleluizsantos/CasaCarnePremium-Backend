@@ -22,6 +22,7 @@ module.exports = {
       min: 2,
       max: 10,
     },
+    scandir: path.resolve(__dirname, "src", "database", "migrations"),
     migrations: {
       tableName: "knex_migrations",
     },
