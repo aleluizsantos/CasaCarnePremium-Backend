@@ -21,38 +21,35 @@ router.post("/register", async (req, res) => {
   if (name === "" || email === "" || phone === "" || password === "")
     return res.status(400).send({ error: "campos obrigatórios" });
 
+  // Verificação se email já esta cadastrado
+  const existUser = await connection("users").where("email", "=", email);
+
+  if (existUser.length > 0)
+    return res.status(400).send({ error: "E-mail já cadastrado" });
+
+  // Cryptografar a senha
+  const crypPassword = await bcrypt.hash(password, 10);
+
   try {
-    // Verificação se email já esta cadastrado
-    const emailUser = await connection("users").where("email", email);
-
-    if (emailUser.length > 0)
-      return res.status(400).send({ error: "E-mail já cadastrado" });
-
-    // Cryptografar a senha
-    const crypPassword = await bcrypt.hash(password, 10);
-
+    const trx = await connection.transaction();
     const user = {
       name,
       email,
       phone,
       password: crypPassword,
     };
+    await trx("users").insert(user);
+    await trx.commit();
 
-    // Caso não exista o email criar usuário
-    const [id] = await connection("users").insert(user);
-    // contar total de usuários
     const totalUsers = await connection("users")
       .count("id as countUser")
       .first();
     // emitir um aviso novo usuário criado retornando o total
     req.io.emit("ClientsRegistered", totalUsers);
 
-    return res.send({
-      user: { name, email, phone, password },
-      token: generateToken({ id: id }),
-    });
+    return res.json({ Message: "Success", user });
   } catch (error) {
-    return res.status(400).send({ error: "Registration failed" });
+    return res.json({ Error: "Falha na insersão de dados" });
   }
 });
 // Autenticação de usuário
@@ -64,7 +61,7 @@ router.post("/authenticate", async (req, res) => {
     return res.status(400).send({ error: "Email ou senha em branco" });
 
   const user = await connection("users")
-    .where("email", email)
+    .where("email", "=", email)
     .select("*")
     .first();
   //Verificação se o usuário esta cadastrado
