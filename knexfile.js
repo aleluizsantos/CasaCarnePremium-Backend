@@ -15,9 +15,9 @@ module.exports = {
     useNullAsDefault: true,
   },
 
-  test: {
+  production: {
     client: "postgres",
-    // "url": ,
+    url: process.env.DATABASE_URL,
     connection: {
       filename: path.resolve(__dirname, "src", "database", "test.sqlite"),
     },
@@ -49,22 +49,22 @@ module.exports = {
     },
   },
 
-  production: {
-    client: "postgresql",
-    connection: {
-      database: "my_db",
-      user: "username",
-      password: "password",
-    },
-    seeds: {
-      directory: path.resolve(__dirname, "src", "database", "seeds"),
-    },
-    pool: {
-      min: 2,
-      max: 10,
-    },
-    migrations: {
-      tableName: "knex_migrations",
-    },
-  },
+  // production: {
+  //   client: "postgresql",
+  //   connection: {
+  //     database: "my_db",
+  //     user: "username",
+  //     password: "password",
+  //   },
+  //   seeds: {
+  //     directory: path.resolve(__dirname, "src", "database", "seeds"),
+  //   },
+  //   pool: {
+  //     min: 2,
+  //     max: 10,
+  //   },
+  //   migrations: {
+  //     tableName: "knex_migrations",
+  //   },
+  // },
 };
