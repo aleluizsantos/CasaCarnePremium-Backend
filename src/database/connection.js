@@ -1,14 +1,13 @@
 require("dotenv").config();
-
 const knex = require("knex");
 const configuration = require("../../knexfile");
 
-console.log("Config BD ==> ", process.env.DATABASE_URL);
-
 const config =
-  process.env.NODE_ENV == "test"
-    ? configuration.test
+  process.env.NODE_ENV === "production"
+    ? configuration.production
     : configuration.development;
+
+console.log("Model development >> ", process.env.NODE_ENV);
 
 const connection = knex(config);
 
