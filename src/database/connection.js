@@ -3,7 +3,7 @@ require("dotenv").config();
 const knex = require("knex");
 const configuration = require("../../knexfile");
 
-console.log("Config BD ==> ", process.env.NODE_ENV);
+console.log("Config BD ==> ", process.env.DATABASE_URL);
 
 const config =
   process.env.NODE_ENV == "test"
