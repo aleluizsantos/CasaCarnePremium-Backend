@@ -7,7 +7,8 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "knex:seed": "knex --knexfile knexfile.js seed:run",
-    "knex:migrate": "knex --knexfile knexfile.js migrate:latest"
+    "knex:migrate": "knex --knexfile knexfile.js migrate:latest",
+    "knex:rollback": "knex --knexfile knexfile.js migrate:rollback"
   },
   "keywords": [],
   "author": "Lesoftware - Alessandro Santos",

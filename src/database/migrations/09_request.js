@@ -1,7 +1,7 @@
 exports.up = async function (knex) {
   return knex.schema.createTable("request", (table) => {
     table.increments("id").primary();
-    table.timestamp("dateTime").defaultTo(knex.fn.now());
+    table.datetime("dateTimeOrder").notNullable();
     table.decimal("totalPurchase", 6, 2).notNullable();
     table.string("coupon").nullable();
     table.decimal("discount", 6, 2).nullable();

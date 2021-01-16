@@ -125,7 +125,7 @@ router.post("/create", async (req, res) => {
 
   // montar os dados do pedido para ser inseridos
   const request = {
-    dateTime: new Date().getUTCDate(),
+    dateTimeOrder: new Date(),
     totalPurchase: totalPur - totalPur * discount,
     coupon,
     discount,
@@ -136,7 +136,7 @@ router.post("/create", async (req, res) => {
     city,
     uf,
     PointReferences,
-    scheduleDateTime,
+    scheduleDateTime: !!scheduleDateTime ? scheduleDateTime : null,
     user_id: Number(user_id),
     deliveryType_id: Number(deliveryType_id),
     statusRequest_id: Number(statusRequest_id),
