@@ -125,7 +125,7 @@ router.post("/create", async (req, res) => {
 
   // montar os dados do pedido para ser inseridos
   const request = {
-    dateTime: new Date(),
+    dateTime: new Date().toUTCString(),
     totalPurchase: totalPur - totalPur * discount,
     coupon,
     discount,
