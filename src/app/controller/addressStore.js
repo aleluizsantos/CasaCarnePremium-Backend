@@ -10,8 +10,7 @@ router.use(authMiddleware);
 router.get("/", async (req, res) => {
   const user_id = req.userId;
   // Verificação se o user_id foi passado
-  if (user_id === undefined || user_id == "")
-    return res.json({ message: "Erro falta de identificação" });
+  if (!user_id) return res.json({ message: "Erro falta de identificação" });
 
   const addr = await connection("addressStore").select("*").first();
 
@@ -32,7 +31,17 @@ router.post("/create", async (req, res) => {
     longitude,
     active,
   } = req.body;
+
   const user_id = req.userId;
+
+  // Verificar se o usuário já cadastrou este endereço
+  const addressExists = await connection("addressStore")
+    .where("address", "=", address)
+    .where("number", "=", number)
+    .where("city", "=", city)
+    .first();
+
+  if (!!addressExists) return res.json({ Error: "Endereço já existe." });
 
   const addUser = await connection("addressStore").insert({
     cep,
@@ -51,18 +60,30 @@ router.post("/create", async (req, res) => {
     Message: addUser ? "Criado com sucesso" : "Erro ao criar",
   });
 });
-
-// Excluir endereço de usuário
+// Excluir endereço da loja
 // http://dominio/address/delete/:id
 router.delete("/delete/:id", async (req, res) => {
   const { id } = req.params;
   const user_id = req.userId;
 
-  const responseDelete = await connection("addressStore")
-    .where({ id: id })
-    .delete();
+  // Verificar se o usuário é administrador
+  const userAdmin = await connection("users")
+    .where({ id: user_id, typeUser: "admin" })
+    .first();
 
-  return res.json(responseDelete);
+  if (!!userAdmin) {
+    const responseDelete = await connection("addressStore")
+      .where({ id: id })
+      .delete();
+
+    return res.json({
+      Status: responseDelete
+        ? "Exclusão realizada com sucesso"
+        : "Falha na Exclusão",
+    });
+  } else {
+    return res.json({ error: "Você não tem permissão para excluir." });
+  }
 });
 
 module.exports = (app) => app.use("/addressStore", router);

@@ -118,7 +118,7 @@ router.get("/users/:id", async (req, res) => {
   const { id } = req.params;
 
   const users = await connection("users")
-    .where("users.id", id)
+    .where("users.id", "=", id)
     .join("addressUser", "addressUser.user_id", "users.id")
     .select(
       "users.id",
@@ -143,19 +143,26 @@ router.get("/users/:id", async (req, res) => {
 });
 //Desbloquear ou Bloquear usuário, apenas ADMINISTRADOR
 // http://dominio/auth/users/:id
-router.post("/blocked", async (req, res) => {
-  const { id, blocked } = req.body;
+router.get("/blocked/:id", async (req, res) => {
+  const { id } = req.params;
   const user_id = req.userId; //Id do usuário recebido no token;
+
   const userAdm = await connection("users")
     .where("id", "=", user_id)
     .where("typeUser", "=", "admin")
     .first();
 
   if (userAdm !== undefined) {
-    const user = await connection("users").where("id", "=", id).update({
-      blocked: !blocked,
-    });
-    return res.json(user);
+    const user = await connection("users")
+      .where("id", "=", id)
+      .select("blocked")
+      .first();
+
+    const updateUser = await connection("users")
+      .where("id", "=", id)
+      .update({ blocked: !user.blocked });
+
+    return res.json(updateUser);
   } else {
     return res.json({
       message: "Usuário não tem permissão para realizar esta ação.",

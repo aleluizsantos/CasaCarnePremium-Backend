@@ -1,7 +1,10 @@
-const connection = require("../../database/connection");
 const express = require("express");
-const authMiddleware = require("../middleware/auth");
+const path = require("path");
+const fs = require("fs");
 
+const authMiddleware = require("../middleware/auth");
+const upload = require("../../config/upload");
+const connection = require("../../database/connection");
 const router = express.Router();
 
 router.use(authMiddleware);
@@ -10,7 +13,7 @@ router.use(authMiddleware);
 // http://dominio/category
 router.get("/", async (req, res) => {
   const category = await connection("category").select("*");
-  const serialezecategory = category.map((cat) => {
+  const serialezeCategory = category.map((cat) => {
     return {
       id: cat.id,
       name: cat.name,
@@ -18,7 +21,7 @@ router.get("/", async (req, res) => {
     };
   });
 
-  return res.json(serialezecategory);
+  return res.json(serialezeCategory);
 });
 // Lista uma categori específica
 // http://dominio/category/:id
@@ -36,22 +39,33 @@ router.get("/:id", async (req, res) => {
 });
 // Criar uma categoria
 // http://dominio/category/create
-router.post("/create", async (req, res) => {
-  const { name, image } = req.body;
-  
+router.post("/create", upload.single("image"), async (req, res) => {
+  const { name } = req.body;
+  const requestImage = req.file;
+
+  // Verificar se existe um tipo de categoria
+  if (!name) return res.json({ error: "Nome é obrigatório" });
+
+  let pathImage;
+  if (!!requestImage) {
+    pathImage = requestImage.filename;
+  } else {
+    pathImage = "default.png";
+  }
+
   try {
     const trx = await connection.transaction();
-    const category = {
+    const categoryData = {
       name,
-      image: image === undefined || image === "" ? "default.png" : image,
+      image: pathImage,
     };
-
-    await trx("category").insert(category);
+    // Inserir categoria
+    await trx("category").insert(categoryData);
     await trx.commit();
-   
-    req.io.emit("Update", { update: category } );
 
-    return res.json({ Message: "success", category });
+    req.io.emit("Update", { update: categoryData });
+
+    return res.json({ Message: "success", categoryData });
   } catch (error) {
     return res.json({ Message: "Erro", typeErro: error });
   }
@@ -61,25 +75,50 @@ router.post("/create", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
 
-  const category = await connection("category").where("id", id).delete();
-  
+  const category = await connection("category").where("id", "=", id).delete();
+
   req.io.emit("Update", { update: category });
 
-  return res.json({ message: category ? "Excluído com sucesso" : "Erro" });
+  return res.json({
+    message: category ? "Excluído com sucesso" : "Falha na exclusão.",
+  });
 });
 // Atualizar uma categoria
 // http://dominio/category/:id
-router.put("/:id", async (req, res) => {
+router.put("/:id", upload.single("image"), async (req, res) => {
   const { id } = req.params;
-  const { name, image } = req.body;
+  const { name, nameImageCurrent } = req.body;
+  const requestImage = req.file;
+
+  let nameImage;
+  if (!!requestImage) {
+    // Existe uma image sendo enviada
+    nameImage = requestImage.filename;
+    // Exluir imagem antiga
+    const pathFileOld = path.resolve(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "uploads",
+      nameImageCurrent
+    );
+    // Checar se o arquivo existe no servidor
+    if (fs.existsSync(pathFileOld)) {
+      // Excluir o arquivo da imagem antiga
+      fs.unlinkSync(pathFileOld);
+    }
+  } else {
+    nameImage = nameImageCurrent;
+  }
 
   try {
     const categoryUpdate = {
       name,
-      image: image === undefined || image === "" ? "default.png" : image,
+      image: nameImage,
     };
 
-    await connection("category").where("id", id).update(categoryUpdate);
+    await connection("category").where("id", "=", id).update(categoryUpdate);
 
     req.io.emit("Update", { update: categoryUpdate });
 

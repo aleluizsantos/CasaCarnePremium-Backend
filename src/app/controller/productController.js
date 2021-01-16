@@ -5,11 +5,7 @@ const multer = require("multer");
 
 const uploadConfig = require("../../config/upload");
 const connection = require("../../database/connection");
-
 const authMiddleware = require("../middleware/auth");
-const { connect } = require("http2");
-const { count } = require("console");
-
 const router = express.Router();
 const upload = multer(uploadConfig);
 
@@ -103,15 +99,13 @@ router.get("/", async (req, res) => {
 router.get("/group", async (req, res) => {
   try {
     const product = await connection("product")
-      .count("category_id", {
-        as: "TotalProduct",
-      })
-      .groupBy("category_id")
+      .count("category_id as TotalProduct")
+      .groupBy("category_id", "category.name")
       .join("category", "product.category_id", "category.id")
       .select("category.name");
     return res.status(200).json(product);
   } catch (error) {
-    return res.status(500).json({ error: "Erro no servidor." });
+    return res.status(500).json({ error: error });
   }
 });
 
@@ -125,7 +119,7 @@ router.get("/all/:search", async (req, res) => {
   let totalProducts = 0;
 
   const products = await connection("product")
-    .where("product.name", "like", `%${search}%`)
+    .where("product.name", "~*", `.*${search}`)
     .join("category", "product.category_id", "category.id")
     .join("measureUnid", "product.measureUnid_id", "measureUnid.id")
     .select(
@@ -157,7 +151,7 @@ router.get("/promotion", async (req, res) => {
   const products = await connection("product")
     .join("category", "product.category_id", "category.id")
     .join("measureUnid", "product.measureUnid_id", "measureUnid.id")
-    .where("promotion", true)
+    .where("promotion", "=", true)
     .select(
       "product.*",
       "category.name as Category",
@@ -181,7 +175,7 @@ router.get("/promotion", async (req, res) => {
  */
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
-  const products = await connection("product").where("id", id).select("*");
+  const products = await connection("product").where("id", "=", id).select("*");
   const serialezeProduct = products.map((product) => {
     return {
       ...product,
@@ -195,17 +189,19 @@ router.get("/:id", async (req, res) => {
  * Criar um Produto
  * http://dominio/produto/create
  */
-router.post("/create", upload.array("images"), async (req, res) => {
-  const requestImage = req.files;
+router.post("/create", upload.single("image"), async (req, res) => {
+  const requestImage = req.file;
 
-  const images = requestImage.map((img) => {
-    return { path: img.filename };
-  });
+  let nameImage;
+  if (!!requestImage) {
+    nameImage = requestImage.filename;
+  } else {
+    nameImage = "default.png";
+  }
 
-  const pathFile =
-    requestImage.length > 0
-      ? path.resolve(__dirname, "..", "..", "..", "uploads", images[0].path)
-      : null;
+  const pathFile = !!nameImage
+    ? path.resolve(__dirname, "..", "..", "..", "uploads", nameImage)
+    : null;
 
   const {
     name,
@@ -217,33 +213,35 @@ router.post("/create", upload.array("images"), async (req, res) => {
     measureUnid_id,
   } = req.body;
 
-  const products = {
-    name,
-    description,
-    price: Number(price),
-    image: images.length > 0 ? images[0].path : "default.png",
-    promotion: promotion === "true" || promotion === true ? true : false,
-    pricePromotion:
-      promotion === "true" || promotion === true ? Number(pricePromotion) : 0,
-    category_id: Number(category_id),
-    measureUnid_id: Number(measureUnid_id),
-  };
-
   try {
-    await connection("product").insert(products);
+    const product = {
+      name,
+      description,
+      price: Number(price),
+      image: nameImage,
+      promotion: promotion === "true" || promotion === true ? true : false,
+      pricePromotion:
+        promotion === "true" || promotion === true ? Number(pricePromotion) : 0,
+      category_id: Number(category_id),
+      measureUnid_id: Number(measureUnid_id),
+    };
 
-    req.io.emit("Update", { update: products });
+    const trx = await connection.transaction();
+    // Inserir produto
+    await trx("product").insert(product);
+    // Efetivar inserção
+    await trx.commit();
 
-    return res.json({ success: true, products });
+    // Emimitr sinal de atualização no banco novo produto
+    req.io.emit("Update", { update: product });
+
+    return res.json({ success: true, product });
   } catch (error) {
     // Exluir o arquivo
     if (fs.existsSync(pathFile)) {
-      fs.unlinkSync(pathFile);
+      // Excluir somente se o arquivo não foi "default.png"
+      nameImage !== "default.png" && fs.unlinkSync(pathFile);
     }
-    return res.json({
-      success: false,
-      message: `O produto '${name}' já esta cadastrado.`,
-    });
   }
 });
 
@@ -255,25 +253,33 @@ router.post("/create", upload.array("images"), async (req, res) => {
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
 
-  const product = await connection("product").where("id", id).first();
-  const pathFile = path.resolve(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "uploads",
-    product.image
-  );
+  try {
+    const product = await connection("product").where("id", "=", id).first();
 
-  if (fs.existsSync(pathFile)) {
-    product.image !== "default.png" && fs.unlinkSync(pathFile);
+    if (!!!product)
+      return res.json({ error: "Identificação do produto inexistente." });
+
+    const pathFile = path.resolve(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "uploads",
+      product.image
+    );
+
+    if (fs.existsSync(pathFile)) {
+      product.image !== "default.png" && fs.unlinkSync(pathFile);
+    }
+
+    const productBD = await connection("product").where("id", id).delete();
+
+    req.io.emit("Update", { update: productBD });
+
+    return res.json({ message: productBD ? "Excluído com sucesso" : "Erro" });
+  } catch (error) {
+    return res.json({ error: error.message });
   }
-
-  const productBD = await connection("product").where("id", id).delete();
-
-  req.io.emit("Update", { update: productBD });
-
-  return res.json({ message: productBD ? "Excluído com sucesso" : "Erro" });
 });
 
 /**
@@ -281,7 +287,7 @@ router.delete("/:id", async (req, res) => {
  * http://dominio/cproduct/:id
  * @param id Number identificação do produto
  */
-router.put("/:id", upload.array("images"), async (req, res) => {
+router.put("/:id", upload.single("image"), async (req, res) => {
   const { id } = req.params;
   const {
     name,
@@ -293,20 +299,51 @@ router.put("/:id", upload.array("images"), async (req, res) => {
     measureUnid_id,
   } = req.body;
 
+  const requestImage = req.file;
+
+  const dataProductOld = await connection("product")
+    .where("id", "=", id)
+    .first();
+
+  let pathFileOld = null;
+  let nameImage;
+  // Checar se foi enviada uma nova imgage
+  if (!!requestImage) {
+    // Nome da image nova
+    nameImage = requestImage.filename;
+    // Path da imagem antiga para Exluir
+    pathFileOld = path.resolve(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "uploads",
+      dataProductOld.image
+    );
+  } else {
+    // Nome da image antiga não houve atualização na image
+    nameImage = dataProductOld.image;
+  }
   try {
     const productUpdate = {
       name,
       description,
       price: Number(price),
-      // image: images.length > 0 ? images[0].path : "default.png",
+      image: nameImage,
       promotion: promotion === "true" || promotion === true ? true : false,
       pricePromotion:
         promotion === "true" || promotion === true ? Number(pricePromotion) : 0,
       category_id: Number(category_id),
       measureUnid_id: Number(measureUnid_id),
     };
+    // Excluir o arquivo do produto antigo
+    if (pathFileOld !== null) {
+      if (fs.existsSync(pathFileOld)) {
+        dataProductOld.image !== "default.png" && fs.unlinkSync(pathFileOld);
+      }
+    }
 
-    await connection("product").where("id", id).update(productUpdate);
+    await connection("product").where("id", "=", id).update(productUpdate);
 
     req.io.emit("Update", { update: Date.now() });
 

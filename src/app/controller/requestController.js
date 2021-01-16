@@ -11,21 +11,22 @@ router.use(authMiddleware);
 // http://dominio/request
 router.get("/", async (req, res) => {
   const user_id = req.userId; //Id do usuário recebido no token;
-  const { statusrequest } = req.headers; //Recebendo um ARRAY de Status de Pedido
-
-  const statusRequest = statusrequest.split(",").map((req) => req.trim());
+  const { statusrequest } = req.headers; //Recebendo um STRING de Status de Pedido
 
   // Verificar os parametros
-  if (statusrequest === "" || statusrequest === undefined)
+  if (!!!statusrequest)
     return res.json({ Message: "Falta do parametro 'StatusRequest'" });
+
+  // Convertendo a String em um ARRAY
+  const statusRequest = statusrequest.split(",").map((req) => req.trim());
 
   // Identificar o tipo do usuário
   const user = await connection("users")
-    .where("id", user_id)
+    .where("id", "=", user_id)
     .first()
     .select("id", "name", "email", "phone", "typeUser");
 
-  //Verificando o tipo de usuário
+  //Verificando o tipo de usuário é ADMIN
   if (user.typeUser === "admin") {
     //Listagem para usuário administrador
     const request = await connection("request")
@@ -94,7 +95,7 @@ router.post("/create", async (req, res) => {
   const dataItems = await Promise.all(
     items.map(async (item) => {
       const dataPrice = await connection("product")
-        .where("id", item.product_id)
+        .where("id", "=", item.product_id)
         .first()
         .select("price", "promotion", "pricePromotion");
 
@@ -124,8 +125,8 @@ router.post("/create", async (req, res) => {
 
   // montar os dados do pedido para ser inseridos
   const request = {
+    dateTime: new Date(),
     totalPurchase: totalPur - totalPur * discount,
-    user_id: Number(user_id),
     coupon,
     discount,
     note,
@@ -136,6 +137,7 @@ router.post("/create", async (req, res) => {
     uf,
     PointReferences,
     scheduleDateTime,
+    user_id: Number(user_id),
     deliveryType_id: Number(deliveryType_id),
     statusRequest_id: Number(statusRequest_id),
     payment_id: Number(payment_id),
@@ -143,11 +145,11 @@ router.post("/create", async (req, res) => {
 
   const trx = await connection.transaction();
   //Inserir o pedido
-  const insertReq = await trx("request").insert(request);
+  const insertReq = await trx("request").insert(request, "id");
   // Capturar o id de do pedido que acabou de ser inserido
   const request_id = insertReq[0];
   // montar os dados do itens do pedido para ser inseridos
-  const itemsRequest = await dataItems.map((item) => {
+  const itemsRequest = dataItems.map((item) => {
     return {
       amount: Number(item.amount),
       price: Number(item.price),
@@ -178,8 +180,11 @@ router.post("/create", async (req, res) => {
 router.get("/items", async (req, res) => {
   const { request_id } = req.headers; //Id do pedido;
 
+  if (!!!request_id)
+    return res.json({ Message: "Falta do parametro HEADERS -> 'Request_id'" });
+
   const itemsRequest = await connection("itemsRequets")
-    .where("request_id", request_id)
+    .where("request_id", "=", request_id)
     .join("product", "itemsRequets.product_id", "product.id")
     .join("measureUnid", "product.measureUnid_id", "measureUnid.id")
     .select(
@@ -195,7 +200,7 @@ router.get("/items", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
 
-  const subQuery = connection("request").select("*").where("id", id);
+  const subQuery = connection("request").select("*").where("id", "=", id);
 
   subQuery
     .then((response) => {
@@ -251,12 +256,10 @@ router.put("/:id", async (req, res) => {
 router.get("/group", async (req, res) => {
   try {
     const statusRequest = await connection("request")
-      .count("statusRequest_id", {
-        as: "TotalStatusReq",
-      })
-      .groupBy("statusRequest_id")
+      .groupBy("statusRequest_id", "statusRequest.description")
+      .count("statusRequest_id as TotalStatus")
       .join("statusRequest", "request.statusRequest_id", "statusRequest.id")
-      .select("statusRequest.*");
+      .select("request.statusRequest_id", "statusRequest.description");
     return res.status(200).json(statusRequest);
   } catch (error) {
     return res.status(500).json({ error: "Erro no servidor." });

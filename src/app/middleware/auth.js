@@ -1,7 +1,5 @@
 const connection = require("../../database/connection");
 const jwt = require("jsonwebtoken");
-// const { response } = require("express");
-// const { first } = require("../../database/connection");
 
 module.exports = (req, res, next) => {
   //Passado na requisição no Headers authorization o token que foi gerado

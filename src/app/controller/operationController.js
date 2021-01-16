@@ -1,7 +1,6 @@
 const connection = require("../../database/connection");
 const express = require("express");
 const authMiddleware = require("../middleware/auth");
-const { first } = require("../../database/connection");
 
 const router = express.Router();
 
@@ -22,13 +21,11 @@ router.put("/", async (req, res) => {
   const user = await connection("users").where("id", user_id).first();
   try {
     if (user.typeUser === "admin") {
-      await connection("operation")
-        .where("id", 1)
-        .update({
-          open_close: operation.open_close ? false : true,
-        });
+      await connection("operation").where("id", 1).update({
+        open_close: !operation.open_close,
+      });
       req.io.emit("Operation", {
-        open_close: operation.open_close ? false : true,
+        open_close: !operation.open_close,
       });
       return res.json({
         open_close: !operation.open_close,

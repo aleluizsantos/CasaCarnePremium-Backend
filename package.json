@@ -10,7 +10,7 @@
     "knex:migrate": "knex --knexfile knexfile.js migrate:latest"
   },
   "keywords": [],
-  "author": "",
+  "author": "Lesoftware - Alessandro Santos",
   "license": "ISC",
   "dependencies": {
     "bcryptjs": "^2.4.3",
