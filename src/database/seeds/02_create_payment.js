@@ -9,14 +9,14 @@ exports.seed = async function (knex) {
   ]);
 
   await knex("category").insert([
-    { name: "Carne Bovina", image: "default.png" },
-    { name: "Carne Suína", image: "default.png" },
-    { name: "Carne Carneiro", image: "default.png" },
-    { name: "Carne Ave", image: "default.png" },
-    { name: "Linguiça", image: "default.png" },
-    { name: "Linguiça Gourmet", image: "default.png" },
-    { name: "Churrasco", image: "default.png" },
-    { name: "Bebidas", image: "default.png" },
-    { name: "Assados", image: "default.png" },
+    { name: "Carne Bovina", image: "1.jpg" },
+    { name: "Carne Suína", image: "2.jpg" },
+    { name: "Carne Carneiro", image: "3.jpg" },
+    { name: "Carne Ave", image: "4.jpg" },
+    { name: "Linguiça", image: "5.jpg" },
+    { name: "Linguiça Gourmet", image: "6.jpg" },
+    { name: "Churrasco", image: "7.jpg" },
+    { name: "Bebidas", image: "8.jpg" },
+    { name: "Assados", image: "9.jpg" },
   ]);
 };
