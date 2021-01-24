@@ -71,6 +71,7 @@ router.get("/", async (req, res) => {
 router.post("/create", async (req, res) => {
   const user_id = req.userId; //Id do usuário recebido no token;
 
+  // Dados recebidos na requisição no body
   const {
     deliveryType_id, // recebendo o id do tipo de entrega
     statusRequest_id = 1, //Status do pedido inicia como 1 'EM ANALISE'
@@ -89,91 +90,101 @@ router.post("/create", async (req, res) => {
 
   // Iniciado o desconto com zero, alterado se o cliente passou um cupom valido com desconto
   let discount = 0;
+  try {
+    // Verificar no banco de dados se os valor dos item estão corretos
+    // se não houve manipulação do frontend para backend
+    const dataItems = await Promise.all(
+      items.map(async (item) => {
+        const dataPrice = await connection("product")
+          .where("id", "=", item.product_id)
+          .first()
+          .select("price", "promotion", "pricePromotion");
 
-  // Verificar no banco de dados se os valor dos item estão corretos
-  // se não houve manipulação do frontend para backend
-  const dataItems = await Promise.all(
-    items.map(async (item) => {
-      const dataPrice = await connection("product")
-        .where("id", "=", item.product_id)
-        .first()
-        .select("price", "promotion", "pricePromotion");
+        // Verificação se o produto encontra na promoção
+        const priceProduct = dataPrice.promotion
+          ? dataPrice.pricePromotion
+          : dataPrice.price;
 
-      // Verificação se o produto encontra na promoção
-      const priceProduct = dataPrice.promotion
-        ? dataPrice.pricePromotion
-        : dataPrice.price;
+        return {
+          amount: Number(item.amount),
+          product_id: Number(item.product_id),
+          price: priceProduct,
+        };
+      })
+    );
 
+    // Calcular o total do carrinho
+    const totalPur = await dataItems.reduce(function (total, item) {
+      return total + Number(item.amount) * Number(item.price);
+    }, 0);
+
+    // Checando a taxa de entrega
+    const { vMinTaxa, taxa } = await connection("taxaDelivery").first();
+    // Checar se o total gasto é maior ou igual a taxa minima de entrega
+    const vTaxaDelivery = totalPur >= vMinTaxa ? 0 : parseFloat(taxa);
+
+    //Verificação do cupom, autenticidade e validade
+    if (coupon !== "") {
+      const vcoupon = await ValidationCoupon(coupon, payment_id);
+      if (vcoupon.Success)
+        discount = Number(vcoupon.Coupon.discountAmount) / 100;
+    }
+
+    // montar os dados do pedido para ser inseridos
+    const request = {
+      dateTimeOrder: new Date(),
+      totalPurchase: vTaxaDelivery + totalPur - totalPur * discount,
+      vTaxaDelivery: vTaxaDelivery,
+      coupon,
+      discount,
+      note,
+      address,
+      number,
+      neighborhood,
+      city,
+      uf,
+      PointReferences,
+      scheduleDateTime: !!scheduleDateTime ? scheduleDateTime : null,
+      user_id: Number(user_id),
+      deliveryType_id: Number(deliveryType_id),
+      statusRequest_id: Number(statusRequest_id),
+      payment_id: Number(payment_id),
+    };
+
+    const trx = await connection.transaction();
+    //Inserir o pedido
+    const insertReq = await trx("request").insert(request, "id");
+    // Capturar o id de do pedido que acabou de ser inserido
+    const request_id = insertReq[0];
+    // montar os dados do itens do pedido para ser inseridos
+    const itemsRequest = dataItems.map((item) => {
       return {
         amount: Number(item.amount),
+        price: Number(item.price),
         product_id: Number(item.product_id),
-        price: priceProduct,
+        request_id: Number(request_id),
       };
-    })
-  );
-
-  // Calcular o total do carrinho
-  const totalPur = await dataItems.reduce(function (total, item) {
-    return total + Number(item.amount) * Number(item.price);
-  }, 0);
-
-  //Verificação do cupom, autenticidade e validade
-  if (coupon !== "") {
-    const vcoupon = await ValidationCoupon(coupon, payment_id);
-    if (vcoupon.Success) discount = Number(vcoupon.Coupon.discountAmount) / 100;
+    });
+    //Inserir os items do pedido
+    await trx("itemsRequets").insert(itemsRequest);
+    // Efetivar a gravação se tudo ocorrer com sucesso na inserção do pedido e
+    // dos itens casos contrário desfaça tudo
+    await trx.commit();
+    // contar todos os pedidos em anlise
+    const ordersAnalize = await connection("request")
+      .count("statusRequest_id as countReq")
+      .where("statusRequest_id", "=", 1)
+      .first();
+    // emitir aviso que foi creado um no Pedido
+    // retornando a quantidade de pedidos em analise
+    req.io.emit("CreateOrder", {
+      newOrder: ordersAnalize,
+    });
+    // Retorna o Pedido e os itens
+    return res.json({ request, itemsRequest });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
-
-  // montar os dados do pedido para ser inseridos
-  const request = {
-    dateTimeOrder: new Date(),
-    totalPurchase: totalPur - totalPur * discount,
-    coupon,
-    discount,
-    note,
-    address,
-    number,
-    neighborhood,
-    city,
-    uf,
-    PointReferences,
-    scheduleDateTime: !!scheduleDateTime ? scheduleDateTime : null,
-    user_id: Number(user_id),
-    deliveryType_id: Number(deliveryType_id),
-    statusRequest_id: Number(statusRequest_id),
-    payment_id: Number(payment_id),
-  };
-
-  const trx = await connection.transaction();
-  //Inserir o pedido
-  const insertReq = await trx("request").insert(request, "id");
-  // Capturar o id de do pedido que acabou de ser inserido
-  const request_id = insertReq[0];
-  // montar os dados do itens do pedido para ser inseridos
-  const itemsRequest = dataItems.map((item) => {
-    return {
-      amount: Number(item.amount),
-      price: Number(item.price),
-      product_id: Number(item.product_id),
-      request_id: Number(request_id),
-    };
-  });
-  //Inserir os items do pedido
-  await trx("itemsRequets").insert(itemsRequest);
-  // Efetivar a gravação se tudo ocorrer com sucesso na inserção do pedido e
-  // dos itens casos contrário desfaça tudo
-  await trx.commit();
-  // contar todos os pedidos em anlise
-  const ordersAnalize = await connection("request")
-    .count("statusRequest_id as countReq")
-    .where("statusRequest_id", "=", 1)
-    .first();
-  // emitir aviso que foi creado um no Pedido
-  // retornando a quantidade de pedidos em analise
-  req.io.emit("CreateOrder", {
-    newOrder: ordersAnalize,
-  });
-  // Retorna o Pedido e os itens
-  return res.json({ request, itemsRequest });
 });
 // Listar itens de um pedido
 // http://dominio/request/items

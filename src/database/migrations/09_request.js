@@ -3,6 +3,7 @@ exports.up = async function (knex) {
     table.increments("id").primary();
     table.datetime("dateTimeOrder").notNullable();
     table.decimal("totalPurchase", 6, 2).notNullable();
+    table.decimal("vTaxaDelivery", 6, 2).notNullable();
     table.string("coupon").nullable();
     table.decimal("discount", 6, 2).nullable();
     table.string("note").nullable();
