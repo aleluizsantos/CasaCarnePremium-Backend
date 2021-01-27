@@ -79,4 +79,38 @@ router.delete("/delete/:id", async (req, res) => {
   });
 });
 
+router.put("/:id", async (req, res) => {
+  const { id } = req.params;
+  const user_id = req.userId;
+  const {
+    cep,
+    address,
+    number,
+    neighborhood,
+    city,
+    uf,
+    active,
+    pointReference,
+  } = req.body;
+
+  try {
+    const updateAddress = await connection("addressUser")
+      .where("id", "=", id)
+      .update({
+        address,
+        cep,
+        number,
+        neighborhood,
+        city,
+        uf,
+        active,
+        pointReference,
+        user_id,
+      });
+    return res.status(201).send(!!updateAddress);
+  } catch (error) {
+    return res.status(504).json({ error: error.message });
+  }
+});
+
 module.exports = (app) => app.use("/address", router);
