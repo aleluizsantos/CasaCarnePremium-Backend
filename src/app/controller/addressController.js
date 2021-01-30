@@ -113,4 +113,41 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+router.put("/active/:id", async (req, res) => {
+  const { id } = req.params;
+  const user_id = req.userId;
+
+  // Buscar o Endereço ativo
+  const addressActive = await connection("addressUser")
+    .where("user_id", "=", user_id)
+    .where("active", "=", true)
+    .select("*")
+    .first();
+
+  // Retirar o enderço antigo como padrão
+  if (addressActive !== undefined) {
+    // Verificar se o endereço ja esta ativo
+    if (addressActive.id == id) {
+      return res.json({ message: "Já é endereço padrão." });
+    }
+
+    await connection("addressUser")
+      .where("id", "=", addressActive.id)
+      .where("user_id", "=", user_id)
+      .update({
+        active: false,
+      });
+  }
+
+  // Colocar o novo endereço como Padrão
+  const upadteNewActiveAddress = await connection("addressUser")
+    .where("id", "=", id)
+    .where("user_id", "=", user_id)
+    .update({
+      active: true,
+    });
+
+  return res.status(201).json(!!upadteNewActiveAddress);
+});
+
 module.exports = (app) => app.use("/address", router);
