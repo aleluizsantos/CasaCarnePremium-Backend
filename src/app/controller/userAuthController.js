@@ -89,7 +89,6 @@ router.use(authMiddleware);
 // http:dominio/auth/users
 router.get("/users", async (req, res) => {
   const users = await connection("users")
-    .leftJoin("addressUser", "addressUser.user_id", "users.id")
     .select(
       "users.id",
       "users.name",
@@ -99,13 +98,7 @@ router.get("/users", async (req, res) => {
       "users.passwordResetExpires",
       "users.typeUser",
       "users.blocked",
-      "users.created_at",
-      "addressUser.address as address",
-      "addressUser.cep as cep",
-      "addressUser.number as number",
-      "addressUser.neighborhood as neighborhood",
-      "addressUser.city as city",
-      "addressUser.uf as uf"
+      "users.created_at"
     )
     .orderBy("name", "asc");
 

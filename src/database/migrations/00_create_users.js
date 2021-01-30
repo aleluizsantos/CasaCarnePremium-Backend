@@ -8,7 +8,7 @@ exports.up = async function (knex) {
     table.string("passwordResetToken").nullable();
     table.string("passwordResetExpires").nullable();
     table.string("typeUser").notNullable().defaultTo("user");
-    table.boolean("blocked").defaultTo(true);
+    table.boolean("blocked").defaultTo(false);
     table.timestamp("created_at").defaultTo(knex.fn.now());
   });
 };
