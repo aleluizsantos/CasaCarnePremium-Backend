@@ -68,8 +68,10 @@ router.get("/", async (req, res) => {
   const { category_id } = req.query;
   let totalProducts = 0;
 
+  const categorys = category_id.split(",").map((cat) => Number(cat.trim()));
+
   const products = await connection("product")
-    .where("product.category_id", "=", category_id)
+    .whereIn("product.category_id", categorys)
     .join("category", "product.category_id", "category.id")
     .join("measureUnid", "product.measureUnid_id", "measureUnid.id")
     .select(
