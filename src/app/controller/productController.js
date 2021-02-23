@@ -51,6 +51,8 @@ router.get("/all", async (req, res) => {
     };
   });
 
+  res.header("X-total-Count", totalProducts);
+
   return res.status(200).json({
     countProducts: totalProducts,
     products: serialezeProduct,
