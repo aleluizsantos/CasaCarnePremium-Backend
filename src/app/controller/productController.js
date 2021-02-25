@@ -104,10 +104,18 @@ router.get("/group", async (req, res) => {
   try {
     const product = await connection("product")
       .count("category_id as TotalProduct")
-      .groupBy("category_id", "category.name")
+      .groupBy("category_id", "category.name", "category.image")
       .join("category", "product.category_id", "category.id")
-      .select("category.name");
-    return res.status(200).json(product);
+      .select("category.name", "category.image");
+
+    const serialezeProduct = product.map((prod) => {
+      return {
+        ...prod,
+        image_url: `${process.env.HOST}/uploads/${prod.image}`,
+      };
+    });
+
+    return res.status(200).json(serialezeProduct);
   } catch (error) {
     return res.status(500).json({ error: error });
   }
