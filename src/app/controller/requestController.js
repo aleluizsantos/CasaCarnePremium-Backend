@@ -44,7 +44,8 @@ router.get("/", async (req, res) => {
         "statusRequest.description As statusRequest",
         "statusRequest.BGcolor",
         "payment.type As payment"
-      );
+      )
+      .orderBy("request.dateTimeOrder", "desc");
 
     return res.json(request);
   } else {
