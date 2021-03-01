@@ -218,11 +218,13 @@ router.put("/:id", async (req, res) => {
     .then((response) => {
       if (response.length > 0) {
         let nextActionRequest;
+        let descriptionNextActionRequest;
         // Alteração do STATUS
         switch (response[0].statusRequest_id) {
           // Produto Status 'EM ANALISE'
           case 1:
             nextActionRequest = 2; // status 'EM PREPARAÇÃO'
+            descriptionNextActionRequest = "Em Preparação";
             break;
           // Pedido em Preparação
           case 2:
@@ -230,19 +232,22 @@ router.put("/:id", async (req, res) => {
             if (response[0].deliveryType_id === 1) {
               // DELIVERY
               nextActionRequest = 3; // status 'ROTA DE ENTREGA'
+              descriptionNextActionRequest = "Rota de Entrega";
             } else {
               // RETIRAR NA LOJA
-              console.log("LOJA");
               nextActionRequest = 4; // status 'RETIRAR NA LOJA'
+              descriptionNextActionRequest = "Retirar na Loja";
             }
             break;
           // Entrega Realizada
           case 3:
             nextActionRequest = 6; // status 'FINALIADO' - entrega concluída
+            descriptionNextActionRequest = "Finalizado";
             break;
           // Retirada Realizada
           case 4:
             nextActionRequest = 6; // status 'FINALIADO' - Retirada concluída
+            descriptionNextActionRequest = "Finalizado";
             break;
           default:
             break;
@@ -251,7 +256,11 @@ router.put("/:id", async (req, res) => {
           .update({ statusRequest_id: nextActionRequest })
           .then((resp) => {
             req.io.emit("Update", { update: resp + Date.now() });
-            res.json(resp);
+            res.json({
+              success: resp,
+              nextState: nextActionRequest,
+              descriptionNextActionRequest: descriptionNextActionRequest,
+            });
           })
           .catch((err) => {
             res.json(err);
@@ -277,4 +286,88 @@ router.get("/group", async (req, res) => {
     return res.status(500).json({ error: "Erro no servidor." });
   }
 });
+
+//Excluir um pedido
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Excluir todos os items do pedidos
+    await connection("itemsRequets").where("request_id", "=", id).delete();
+    // Excluir o pedido
+    const myOrder = await connection("request").where("id", "=", id).delete();
+    return res.json({ success: !!myOrder });
+  } catch (error) {
+    return res.json(error.message);
+  }
+});
+//Excluir um item do pedido
+router.delete("/item/:id", async (req, res) => {
+  const { id } = req.params; //id do item para ser excluido
+  const { request_id } = req.headers; //id do pedido
+
+  try {
+    // Exluir o item do pedido
+    const isDelete = await connection("itemsRequets")
+      .where("id", "=", id)
+      .where("request_id", "=", request_id)
+      .delete();
+
+    if (!!isDelete) {
+      // Recalcular o totla do pedido apos o item excluido
+      const itemsRequest = await connection("itemsRequets")
+        .where("request_id", "=", request_id)
+        .select("*");
+
+      // Calcular o total do carrinho
+      const totalPur = await itemsRequest.reduce(function (total, item) {
+        return total + Number(item.amount) * Number(item.price);
+      }, 0);
+
+      // Checando a taxa de entrega
+      const { vMinTaxa, taxa } = await connection("taxaDelivery").first();
+      // Checar se o total gasto é maior ou igual a taxa minima de entrega
+      const vTaxaDelivery = totalPur >= vMinTaxa ? 0 : parseFloat(taxa);
+
+      // Buscar todos os dados do pedido
+      const orders = await connection("request")
+        .where("id", "=", request_id)
+        .first();
+
+      // Alterar os dados necessário do pedido apos exclusão do item
+      const data = {
+        ...orders,
+        totalPurchase:
+          totalPur + vTaxaDelivery - totalPur * Number(orders.discount),
+        vTaxaDelivery: vTaxaDelivery,
+      };
+
+      // Atualizar o pedido com o novo valor
+      await connection("request").where("id", "=", request_id).update(data);
+      return res.json(data);
+    } else {
+      return res.json({
+        error:
+          "Você não tem permissão para excluir este item ou o item não existe.",
+      });
+    }
+  } catch (error) {
+    return res.json({ error: error.message });
+  }
+});
+//Criar item do pedido
+router.post("/item", async (req, res) => {
+  const { amount, price, product_id, request_id } = req.body;
+
+  const itemRequest = {
+    amount: Number(amount),
+    price: Number(price),
+    product_id: Number(product_id),
+    request_id: Number(request_id),
+  };
+
+  await connection("itemsRequets").insert(itemRequest);
+
+  return res.json(itemRequest);
+});
+
 module.exports = (app) => app.use("/request", router);
