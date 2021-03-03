@@ -358,16 +358,54 @@ router.delete("/item/:id", async (req, res) => {
 router.post("/item", async (req, res) => {
   const { amount, price, product_id, request_id } = req.body;
 
-  const itemRequest = {
+  const newItemRequest = {
     amount: Number(amount),
     price: Number(price),
     product_id: Number(product_id),
     request_id: Number(request_id),
   };
 
-  await connection("itemsRequets").insert(itemRequest);
+  // Inserir o novo item
+  await connection("itemsRequets").insert(newItemRequest);
 
-  return res.json(itemRequest);
+  // Recalcular o totla do pedido apos o item excluido
+  const itemsRequest = await connection("itemsRequets")
+    .where("request_id", "=", request_id)
+    .join("product", "itemsRequets.product_id", "product.id")
+    .join("measureUnid", "product.measureUnid_id", "measureUnid.id")
+    .select(
+      "itemsRequets.*",
+      "product.name",
+      "measureUnid.unid as measureUnid"
+    );
+
+  // Calcular o total do carrinho
+  const totalPur = await itemsRequest.reduce(function (total, item) {
+    return total + Number(item.amount) * Number(item.price);
+  }, 0);
+
+  // Checando a taxa de entrega
+  const { vMinTaxa, taxa } = await connection("taxaDelivery").first();
+  // Checar se o total gasto é maior ou igual a taxa minima de entrega
+  const vTaxaDelivery = totalPur >= vMinTaxa ? 0 : parseFloat(taxa);
+
+  // Buscar todos os dados do pedido
+  const orders = await connection("request")
+    .where("id", "=", request_id)
+    .first();
+
+  // Alterar os dados necessário do pedido apos exclusão do item
+  const data = {
+    ...orders,
+    totalPurchase:
+      totalPur + vTaxaDelivery - totalPur * Number(orders.discount),
+    vTaxaDelivery: vTaxaDelivery,
+  };
+
+  // Atualizar o pedido com o novo valor
+  await connection("request").where("id", "=", request_id).update(data);
+
+  return res.json({ order: data, items: itemsRequest });
 });
 
 module.exports = (app) => app.use("/request", router);
