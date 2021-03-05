@@ -72,6 +72,16 @@ router.post("/authenticate", async (req, res) => {
   if (!(await bcrypt.compare(password, user.password)))
     return res.status(401).send({ error: "Senha incorreta" });
 
+  // Open-Close
+  const openClose = await connection("operation").first().select("open_close");
+  // Quantidade de pedidos
+  const totalPedidosProcess = await connection("request")
+    .whereIn("statusRequest_id", [1])
+    .count("id as countRequest")
+    .first();
+  // Quantidade de usuário no sistema
+  const totalUsers = await connection("users").count("id as countUser").first();
+
   // Retorno caso password estive correto retorna usuário e token
   return res.send({
     user: {
@@ -81,6 +91,9 @@ router.post("/authenticate", async (req, res) => {
       blocked: user.blocked,
     },
     token: generateToken({ id: user.id }),
+    openClose: openClose.open_close,
+    totalPedidosProcess: totalPedidosProcess.countRequest,
+    totalUsers: totalUsers.countUser,
   });
 });
 
