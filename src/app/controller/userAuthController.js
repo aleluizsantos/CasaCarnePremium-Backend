@@ -88,6 +88,7 @@ router.post("/authenticate", async (req, res) => {
       name: user.name,
       email: user.email,
       phone: user.phone,
+      typeUser: user.typeUser,
       blocked: user.blocked,
     },
     token: generateToken({ id: user.id }),

@@ -15,7 +15,7 @@ router.get("/", async (req, res) => {
 
   // Verificar os parametros
   if (!!!statusrequest)
-    return res.json({ Message: "Falta do parametro 'StatusRequest'" });
+    return res.json({ Message: "Falta do parametro 'statusRequest'" });
 
   // Convertendo a String em um ARRAY
   const statusRequest = statusrequest.split(",").map((req) => req.trim());
@@ -51,7 +51,8 @@ router.get("/", async (req, res) => {
   } else {
     //Listagem para usuário comum - APENAS PEDIDO DELE
     const request = await connection("request")
-      .where("user_id", user_id)
+      .where("user_id", "=", user_id)
+      .whereIn("statusRequest_id", statusRequest)
       .join("deliveryType", "request.deliveryType_id", "deliveryType.id")
       .join("statusRequest", "request.statusRequest_id", "statusRequest.id")
       .join("payment", "request.payment_id", "payment.id")
