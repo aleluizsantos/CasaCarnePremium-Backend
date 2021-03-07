@@ -29,6 +29,7 @@ module.exports = {
       directory: path.resolve(__dirname, "src", "database", "migrations"),
       tableName: "knex_migrations",
     },
+    ssl: true,
     seeds: {
       directory: path.resolve(__dirname, "src", "database", "seeds"),
     },
