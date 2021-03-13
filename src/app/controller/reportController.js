@@ -13,17 +13,20 @@ router.use(authMiddleware);
  * @returns
  */
 router.get("/saleDay", async (req, res) => {
-  const now = new Date();
+  let dateNow = new Date();
 
-  const day = (now.getDate() + 1).toString().padStart(2, 0);
-  const month = (now.getMonth() + 1).toString().padStart(2, 0);
-  const year = now.getFullYear().toString().padStart(2, 0);
+  // formatar data no formato ISO 8601
+  let dateStart = dateNow.getFullYear().toString() + "-";
+  dateStart += (dateNow.getMonth() + 1).toString().padStart(2, "0") + "-";
+  dateStart += dateNow.getDate().toString().padStart(2, "0") + "T00:00:00";
 
-  const dateCurrent = `${year}-${month}-${day}`;
+  let dateEnd = dateNow.getFullYear().toString() + "-";
+  dateEnd += (dateNow.getMonth() + 1).toString().padStart(2, "0") + "-";
+  dateEnd += dateNow.getDate().toString().padStart(2, "0") + "T23:59:59";
 
   const saleDay = await connection("request")
-    .where("dateTimeOrder", ">=", `${dateCurrent}T00:00:00Z`)
-    .where("dateTimeOrder", "<=", `${dateCurrent}T23:59:59Z`)
+    .where("dateTimeOrder", ">", dateStart)
+    .where("dateTimeOrder", "<=", dateEnd)
     .select("dateTimeOrder", "totalPurchase");
 
   // total da vendo do dia
@@ -32,7 +35,7 @@ router.get("/saleDay", async (req, res) => {
   }, 0);
 
   return res.json({
-    date: now,
+    saleDay,
     totalSaleDay: totalSaleDay,
   });
 });
