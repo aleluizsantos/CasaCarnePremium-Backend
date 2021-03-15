@@ -10,6 +10,7 @@ const authMiddleware = require("../middleware/auth");
 const router = express.Router();
 const upload = multer(uploadConfig);
 
+const format = require("../utils/format");
 /**
  * Middleware interceptador verificar autenticidade do usuário
  * logado no sistema
@@ -22,12 +23,17 @@ router.use(authMiddleware);
  * @param category_id id da categoria
  */
 router.get("/all", async (req, res) => {
+  const userId = req.userId;
   const { page = 1 } = req.query;
   const limit = 10;
   const skip = (page - 1) * limit;
   let totalProducts = 0;
 
+  const user = await connection("users").where("id", "=", userId).first();
+  const isAdmin = user.typeUser === "admin" ? [true, false] : [true];
+
   const products = await connection("product")
+    .whereIn("visibleApp", isAdmin)
     .join("category", "product.category_id", "category.id")
     .join("measureUnid", "product.measureUnid_id", "measureUnid.id")
     .limit(limit)
@@ -40,6 +46,7 @@ router.get("/all", async (req, res) => {
     .orderBy("product.name", "asc");
 
   await connection("product")
+    .whereIn("visibleApp", isAdmin)
     .count("id as count")
     .then(function (total) {
       totalProducts = total[0].count;
@@ -66,12 +73,17 @@ router.get("/all", async (req, res) => {
  * @param category_id id da categoria
  */
 router.get("/", async (req, res) => {
+  const userId = req.userId;
   const { category_id } = req.query;
   let totalProducts = 0;
 
   const categorys = category_id.split(",").map((cat) => Number(cat.trim()));
 
+  const user = await connection("users").where("id", "=", userId).first();
+  const isAdmin = user.typeUser === "admin" ? [true, false] : [true];
+
   const products = await connection("product")
+    .whereIn("visibleApp", isAdmin)
     .whereIn("product.category_id", categorys)
     .join("category", "product.category_id", "category.id")
     .join("measureUnid", "product.measureUnid_id", "measureUnid.id")
@@ -128,10 +140,15 @@ router.get("/group", async (req, res) => {
  * @param search String critério de pesquisa
  */
 router.get("/all/:search", async (req, res) => {
+  const userId = req.userId;
   const { search } = req.params;
   let totalProducts = 0;
 
+  const user = await connection("users").where("id", "=", userId).first();
+  const isAdmin = user.typeUser === "admin" ? [true, false] : [true];
+
   const products = await connection("product")
+    .whereIn("visibleApp", isAdmin)
     .where("product.name", "~*", `.*${search}`)
     .join("category", "product.category_id", "category.id")
     .join("measureUnid", "product.measureUnid_id", "measureUnid.id")
@@ -161,7 +178,13 @@ router.get("/all/:search", async (req, res) => {
  * http://dominio/product/promotion
  */
 router.get("/promotion", async (req, res) => {
+  const userId = req.userId;
+
+  const user = await connection("users").where("id", "=", userId).first();
+  const isAdmin = user.typeUser === "admin" ? [true, false] : [true];
+
   const products = await connection("product")
+    .whereIn("visibleApp", isAdmin)
     .join("category", "product.category_id", "category.id")
     .join("measureUnid", "product.measureUnid_id", "measureUnid.id")
     .where("promotion", "=", true)
@@ -228,8 +251,6 @@ router.post("/create", upload.single("image"), async (req, res) => {
     inventory,
   } = req.body;
 
-  return res.json(req.body);
-
   const schema = Yup.object().shape({
     name: Yup.string().max(255).required("Nome obrigatório"),
     description: Yup.string().max(255),
@@ -240,7 +261,7 @@ router.post("/create", upload.single("image"), async (req, res) => {
     category_id: Yup.number().integer(),
     measureUnid_id: Yup.number().integer(),
     inventory: Yup.number(),
-    visibleApp: Yup.boolean().default(true),
+    visibleApp: Yup.boolean().required(),
   });
 
   const product = {
@@ -248,14 +269,15 @@ router.post("/create", upload.single("image"), async (req, res) => {
     description,
     price: Number(price),
     image: nameImage,
-    promotion: promotion === "true" || promotion === true ? true : false,
-    pricePromotion:
-      promotion === "true" || promotion === true ? Number(pricePromotion) : 0,
+    promotion: format.isboolean(promotion),
+    pricePromotion: format.isboolean(promotion) ? Number(pricePromotion) : 0,
     category_id: Number(category_id),
     measureUnid_id: Number(measureUnid_id),
+    visibleApp: format.isboolean(visibleApp),
+    inventory: Number(inventory),
   };
 
-  await schema.validate(product, { abortEarly: false });
+  schema.validateSync(product, { abortEarly: false });
 
   try {
     const trx = await connection.transaction();
