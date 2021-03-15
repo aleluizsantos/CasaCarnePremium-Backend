@@ -8,6 +8,9 @@ exports.up = async function (knex) {
     table.boolean("promotion").defaultTo(false);
     table.decimal("pricePromotion", 6, 2).defaultTo(0);
 
+    table.decimal("inventory", 6, 2).defaultTo(0);
+    table.boolean("visibleApp").defaultTo(true);
+
     table.integer("category_id").notNullable();
     table
       .foreign("category_id")

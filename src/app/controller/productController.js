@@ -2,6 +2,7 @@ const path = require("path");
 const fs = require("fs");
 const express = require("express");
 const multer = require("multer");
+const Yup = require("yup");
 
 const uploadConfig = require("../../config/upload");
 const connection = require("../../database/connection");
@@ -223,21 +224,40 @@ router.post("/create", upload.single("image"), async (req, res) => {
     pricePromotion,
     category_id,
     measureUnid_id,
+    visibleApp,
+    inventory,
   } = req.body;
 
-  try {
-    const product = {
-      name,
-      description,
-      price: Number(price),
-      image: nameImage,
-      promotion: promotion === "true" || promotion === true ? true : false,
-      pricePromotion:
-        promotion === "true" || promotion === true ? Number(pricePromotion) : 0,
-      category_id: Number(category_id),
-      measureUnid_id: Number(measureUnid_id),
-    };
+  return res.json(req.body);
 
+  const schema = Yup.object().shape({
+    name: Yup.string().max(255).required("Nome obrigatório"),
+    description: Yup.string().max(255),
+    price: Yup.number().required(),
+    image: Yup.string(),
+    promotion: Yup.boolean().required(),
+    pricePromotion: Yup.number().required(),
+    category_id: Yup.number().integer(),
+    measureUnid_id: Yup.number().integer(),
+    inventory: Yup.number(),
+    visibleApp: Yup.boolean().default(true),
+  });
+
+  const product = {
+    name,
+    description,
+    price: Number(price),
+    image: nameImage,
+    promotion: promotion === "true" || promotion === true ? true : false,
+    pricePromotion:
+      promotion === "true" || promotion === true ? Number(pricePromotion) : 0,
+    category_id: Number(category_id),
+    measureUnid_id: Number(measureUnid_id),
+  };
+
+  await schema.validate(product, { abortEarly: false });
+
+  try {
     const trx = await connection.transaction();
     // Inserir produto
     await trx("product").insert(product);
