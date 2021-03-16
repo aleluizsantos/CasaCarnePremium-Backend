@@ -33,7 +33,7 @@ router.get("/all", async (req, res) => {
   const isAdmin = user.typeUser === "admin" ? [true, false] : [true];
 
   const products = await connection("product")
-    .whereIn("visibleApp", isAdmin)
+    .whereIn("visibleApp", isAdmin) //Exibir os produto os produtos visivel e não visible
     .join("category", "product.category_id", "category.id")
     .join("measureUnid", "product.measureUnid_id", "measureUnid.id")
     .limit(limit)
@@ -276,7 +276,6 @@ router.post("/create", upload.single("image"), async (req, res) => {
     visibleApp: format.isboolean(visibleApp),
     inventory: Number(inventory),
   };
-
   schema.validateSync(product, { abortEarly: false });
 
   try {
@@ -351,6 +350,8 @@ router.put("/:id", upload.single("image"), async (req, res) => {
     pricePromotion,
     category_id,
     measureUnid_id,
+    visibleApp,
+    inventory,
   } = req.body;
 
   const requestImage = req.file;
@@ -384,11 +385,12 @@ router.put("/:id", upload.single("image"), async (req, res) => {
       description,
       price: Number(price),
       image: nameImage,
-      promotion: promotion === "true" || promotion === true ? true : false,
-      pricePromotion:
-        promotion === "true" || promotion === true ? Number(pricePromotion) : 0,
+      promotion: format.isboolean(promotion),
+      pricePromotion: format.isboolean(promotion) ? Number(pricePromotion) : 0,
       category_id: Number(category_id),
       measureUnid_id: Number(measureUnid_id),
+      visibleApp: format.isboolean(visibleApp),
+      inventory: Number(inventory),
     };
     // Excluir o arquivo do produto antigo
     if (pathFileOld !== null) {

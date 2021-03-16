@@ -167,6 +167,10 @@ router.post("/create", async (req, res) => {
         request_id: Number(request_id),
       };
     });
+
+    // Atualizar o estoque do produto
+    upgradeStoreProduct(dataItems);
+
     //Inserir os items do pedido
     await trx("itemsRequets").insert(itemsRequest);
     // Efetivar a gravação se tudo ocorrer com sucesso na inserção do pedido e
@@ -408,5 +412,22 @@ router.post("/item", async (req, res) => {
 
   return res.json({ order: data, items: itemsRequest });
 });
+
+function upgradeStoreProduct(itemsOrder) {
+  itemsOrder.map(async (item) => {
+    const product = await connection("product")
+      .where("id", "=", item.product_id)
+      .first();
+
+    const newStoreProduct = {
+      ...product,
+      inventory: Number(product.inventory) - Number(item.amount),
+    };
+
+    await connection("product")
+      .where("id", "=", item.product_id)
+      .update(newStoreProduct);
+  });
+}
 
 module.exports = (app) => app.use("/request", router);
