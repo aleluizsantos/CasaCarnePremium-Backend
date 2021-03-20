@@ -1,7 +1,7 @@
 exports.up = async function (knex) {
   return knex.schema.createTable("provider", (table) => {
     table.increments("id").primary();
-    table.string("nameProvider").notNullable();
+    table.string("nameProvider").notNullable().unique();
     table.string("nameContact").notNullable();
     table.string("address").notNullable();
     table.string("cep").nullable();

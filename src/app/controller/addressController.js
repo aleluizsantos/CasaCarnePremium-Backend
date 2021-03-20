@@ -73,8 +73,8 @@ router.delete("/delete/:id", async (req, res) => {
     .delete();
 
   return res.json({
-    Status: responseDelete
-      ? "Exclusão reaizada com Sucesso"
+    message: responseDelete
+      ? "Exclusão realizada com Sucesso"
       : "Falha na exclusão.",
   });
 });
