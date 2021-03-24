@@ -102,5 +102,19 @@ router.put("/:id", async (req, res) => {
     return res.json({ error: "Ocorreu um problema" });
   }
 });
+/**
+ * Listar todos os produto mediante criterio de pesquisa
+ * http://dominio/product/${text}
+ * @param search String critério de pesquisa
+ */
+router.get("/:search", async (req, res) => {
+  const { search } = req.params;
+
+  const provider = await connection("provider")
+    .where("nameProvider", "~*", `.*${search}`)
+    .select("*");
+
+  return res.status(200).json(provider);
+});
 
 module.exports = (app) => app.use("/provider", router);
