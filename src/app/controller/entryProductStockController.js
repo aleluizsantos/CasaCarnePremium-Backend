@@ -11,6 +11,14 @@ router.get("/", async (req, res) => {
   const { page = 1 } = req.query;
   const limit = 10;
   const skip = (page - 1) * limit;
+  let totalentryProduct = 0;
+
+  await connection("entryProductStock")
+    .count("id as count")
+    .first()
+    .then(function (total) {
+      totalentryProduct = total.count;
+    });
 
   const productStock = await connection("entryProductStock")
     .join("product", "entryProductStock.product_id", "product.id")
@@ -27,7 +35,7 @@ router.get("/", async (req, res) => {
       "product.inventory as inventoryCurrent"
     );
 
-  return res.json(productStock);
+  return res.json({ totalentryProduct, productStock });
 });
 
 router.post("/create", async (req, res) => {
