@@ -50,7 +50,7 @@ router.post("/create", async (req, res) => {
       // calculando o estoque para o produto
       const newProduct = {
         ...product,
-        inventory: Number(product.inventory) - Number(element.amount),
+        inventory: Number(product.inventory) + Number(element.amount),
       };
       // Atualizar o banco
       await connection("product")
@@ -66,7 +66,7 @@ router.post("/create", async (req, res) => {
     //Criar o produto com o novo Estoque
     const newProduct = {
       ...product,
-      inventory: Number(product.inventory) - Number(amount),
+      inventory: Number(product.inventory) + Number(amount),
     };
     // Atualizar o banco
     await connection("product").where("id", "=", product_id).update(newProduct);

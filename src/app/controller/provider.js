@@ -97,7 +97,7 @@ router.put("/:id", async (req, res) => {
       .update(provider);
 
     if (!updateProvider) return res.json({ error: "Falha na exclusão" });
-    return res.json(provider);
+    return res.json({ ...provider, id: id });
   } catch (error) {
     return res.json({ error: "Ocorreu um problema" });
   }

@@ -3,6 +3,7 @@ exports.up = async function (knex) {
     table.increments("id").primary();
     table.string("nameProvider").notNullable().unique();
     table.string("nameContact").notNullable();
+    table.string("phone").notNullable();
     table.string("address").notNullable();
     table.string("cep").nullable();
     table.string("number").notNullable();
