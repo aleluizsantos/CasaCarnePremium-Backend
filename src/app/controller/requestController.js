@@ -88,6 +88,7 @@ router.post("/create", async (req, res) => {
     PointReferences,
     scheduleDateTime,
     items, //recebendo um ARRAY de objetos de items do pedido
+    cash, //Troco
   } = req.body;
 
   // Iniciado o desconto com zero, alterado se o cliente passou um cupom valido com desconto
@@ -151,6 +152,7 @@ router.post("/create", async (req, res) => {
       deliveryType_id: Number(deliveryType_id),
       statusRequest_id: Number(statusRequest_id),
       payment_id: Number(payment_id),
+      cash,
     };
 
     const trx = await connection.transaction();
