@@ -85,6 +85,7 @@ router.post("/authenticate", async (req, res) => {
   // Retorno caso password estive correto retorna usuário e token
   return res.send({
     user: {
+      id: user.id,
       name: user.name,
       email: user.email,
       phone: user.phone,

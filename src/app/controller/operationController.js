@@ -24,6 +24,7 @@ router.put("/", async (req, res) => {
       await connection("operation").where("id", 1).update({
         open_close: !operation.open_close,
       });
+
       req.io.emit("Operation", {
         open_close: !operation.open_close,
       });

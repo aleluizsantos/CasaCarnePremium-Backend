@@ -13,20 +13,6 @@ const app = express();
 const server = require("http").Server(app);
 const io = require("socket.io")(server);
 
-let onlineClients = 0;
-
-io.on("connection", function (socket) {
-  onlineClients++;
-  // on disconnected, unregister
-  socket.on("disconnect", function () {
-    onlineClients--;
-    // delete onlineClients[socket.id];
-    socket.broadcast.emit("onlineClients", onlineClients);
-  });
-
-  socket.broadcast.emit("onlineClients", onlineClients);
-});
-
 //Criar um middleware para interceptar as requisições e transmitir
 //ao protocolo socket.io
 app.use((req, res, next) => {
@@ -46,4 +32,21 @@ require("./app/controller/index")(app);
 
 server.listen(process.env.PORT || 3333, function () {
   console.log("..::Servidor online::..");
+});
+
+let onlineClients = 0;
+
+io.on("connection", function (socket) {
+  socket.on("join", function (data) {
+    onlineClients = onlineClients + 1;
+    console.log(data);
+    socket.join(data.user_id);
+  });
+  // on disconnected, unregister
+  socket.on("disconnect", function () {
+    onlineClients = onlineClients - 1;
+    // delete onlineClients[socket.id];
+  });
+
+  socket.broadcast.emit("onlineClients", onlineClients);
 });

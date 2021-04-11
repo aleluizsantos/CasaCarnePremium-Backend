@@ -219,66 +219,80 @@ router.get("/items", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
 
-  const subQuery = connection("request").select("*").where("id", "=", id);
+  const request = await connection("request")
+    .where("id", "=", id)
+    .select("*")
+    .first();
 
-  subQuery
-    .then((response) => {
-      if (response.length > 0) {
-        let nextActionRequest;
-        let descriptionNextActionRequest;
-        // Alteração do STATUS
-        switch (response[0].statusRequest_id) {
-          // Produto Status 'EM ANALISE'
-          case 1:
-            nextActionRequest = 2; // status 'EM PREPARAÇÃO'
-            descriptionNextActionRequest = "Em Preparação";
-            break;
-          // Pedido em Preparação
-          case 2:
-            // 1=DELIVERY || 2=RETIRAR LOJA
-            if (response[0].deliveryType_id === 1) {
-              // DELIVERY
-              nextActionRequest = 3; // status 'ROTA DE ENTREGA'
-              descriptionNextActionRequest = "Rota de Entrega";
-            } else {
-              // RETIRAR NA LOJA
-              nextActionRequest = 4; // status 'RETIRAR NA LOJA'
-              descriptionNextActionRequest = "Retirar na Loja";
-            }
-            break;
-          // Entrega Realizada
-          case 3:
-            nextActionRequest = 6; // status 'FINALIADO' - entrega concluída
-            descriptionNextActionRequest = "Finalizado";
-            break;
-          // Retirada Realizada
-          case 4:
-            nextActionRequest = 6; // status 'FINALIADO' - Retirada concluída
-            descriptionNextActionRequest = "Finalizado";
-            break;
-          default:
-            break;
-        }
-        subQuery
-          .update({ statusRequest_id: nextActionRequest })
-          .then((resp) => {
-            req.io.emit("Update", { update: resp + Date.now() });
-            res.json({
-              success: resp,
-              nextState: nextActionRequest,
-              descriptionNextActionRequest: descriptionNextActionRequest,
-            });
-          })
-          .catch((err) => {
-            res.json(err);
-          });
+  if (typeof request === "undefined")
+    return res.json({ error: "Falha na atualização" });
+
+  const statusRequest = request.statusRequest_id;
+  const typeDelivery = request.deliveryType_id;
+  const user_id = request.user_id;
+
+  let nextActionRequest;
+  let descriptionNextActionRequest;
+  let message;
+  // Alteração do STATUS
+  switch (statusRequest) {
+    // Produto Status 'EM ANALISE'
+    case 1:
+      nextActionRequest = 2; // status 'EM PREPARAÇÃO'
+      descriptionNextActionRequest = "Em Preparação";
+      message = "Seu pedido está preparação.";
+      break;
+    // Pedido em Preparação
+    case 2:
+      // 1=DELIVERY || 2=RETIRAR LOJA
+      if (typeDelivery === 1) {
+        // DELIVERY
+        nextActionRequest = 3; // status 'ROTA DE ENTREGA'
+        descriptionNextActionRequest = "Rota de Entrega";
+        message = "Seu pedido está em rota de entrega.";
       } else {
-        res.json("update failed");
+        // RETIRAR NA LOJA
+        nextActionRequest = 4; // status 'RETIRAR NA LOJA'
+        descriptionNextActionRequest = "Retirar na Loja";
+        message = "Seu pedido esta pronto para retirar na loja.";
       }
-    })
-    .catch((err) => {
-      res.json(err);
+      break;
+    // Entrega Realizada
+    case 3:
+      nextActionRequest = 6; // status 'FINALIADO' - entrega concluída
+      descriptionNextActionRequest = "Finalizado";
+      message = "Pedido Finalizado, obrigado pela preferência.";
+      break;
+    // Retirada Realizada
+    case 4:
+      nextActionRequest = 6; // status 'FINALIADO' - Retirada concluída
+      descriptionNextActionRequest = "Finalizado";
+      message = "Pedido Finalizado, obrigado pela preferência.";
+      break;
+    default:
+      break;
+  }
+
+  // Atualizar o banco
+  const upgradeRequest = await connection("request")
+    .where("id", "=", id)
+    .update({
+      ...request,
+      statusRequest_id: nextActionRequest,
     });
+
+  // Enviar para o cliente um alert do status do seu pedido
+  req.io.sockets.in(user_id).emit("UpdateStatusMyOrder", {
+    descriptionNextActionRequest: message,
+  });
+
+  return res.status(200).json({
+    // success: Boolean(upgradeRequest),
+    success: true,
+    user_id: user_id,
+    nextState: nextActionRequest,
+    descriptionNextActionRequest: descriptionNextActionRequest,
+  });
 });
 
 router.get("/group", async (req, res) => {
