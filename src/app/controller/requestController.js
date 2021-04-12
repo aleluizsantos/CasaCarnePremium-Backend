@@ -89,6 +89,7 @@ router.post("/create", async (req, res) => {
     scheduleDateTime,
     items, //recebendo um ARRAY de objetos de items do pedido
     cash, //Troco
+    timeDelivery,
   } = req.body;
 
   // Iniciado o desconto com zero, alterado se o cliente passou um cupom valido com desconto
@@ -153,6 +154,7 @@ router.post("/create", async (req, res) => {
       statusRequest_id: Number(statusRequest_id),
       payment_id: Number(payment_id),
       cash,
+      timeDelivery: timeDelivery || "15 à 50 min",
     };
 
     const trx = await connection.transaction();
@@ -287,7 +289,7 @@ router.put("/:id", async (req, res) => {
   });
 
   return res.status(200).json({
-    // success: Boolean(upgradeRequest),
+    success: Boolean(upgradeRequest),
     success: true,
     user_id: user_id,
     nextState: nextActionRequest,

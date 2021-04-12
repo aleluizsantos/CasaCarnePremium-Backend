@@ -8,6 +8,7 @@ exports.up = async function (knex) {
     table.string("coupon").nullable();
     table.decimal("discount", 6, 2).nullable();
     table.string("note").nullable();
+    table.string("timeDelivery").nullable();
 
     table.string("address").notNullable();
     table.string("number", 6).notNullable();
