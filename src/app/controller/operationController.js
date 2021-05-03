@@ -19,17 +19,20 @@ router.put("/", async (req, res) => {
   const user_id = req.userId; //Id do usuário recebido no token;
   const operation = await connection("operation").first().select("*");
   const user = await connection("users").where("id", user_id).first();
+
+  const valueOpenClose = !operation.open_close;
+
   try {
     if (user.typeUser === "admin") {
       await connection("operation").where("id", 1).update({
-        open_close: !operation.open_close,
+        open_close: valueOpenClose,
       });
 
       req.io.emit("Operation", {
-        open_close: !operation.open_close,
+        open_close: valueOpenClose,
       });
       return res.json({
-        open_close: !operation.open_close,
+        open_close: valueOpenClose,
         message: "Atualização realizada com sucesso",
       });
     } else {

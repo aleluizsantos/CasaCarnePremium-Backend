@@ -24,16 +24,27 @@ router.use(authMiddleware);
  */
 router.get("/all", async (req, res) => {
   const userId = req.userId;
-  const { page = 1 } = req.query;
+  const { page = 1, category_id = "" } = req.query;
   const limit = 10;
   const skip = (page - 1) * limit;
   let totalProducts = 0;
+
+  // Categorias selecionadas passadas no parametro
+  let categorys = category_id.split(",").map((cat) => Number(cat.trim()));
+
+  if (categorys.length === 1 && categorys[0] === 0) {
+    // Exibir todas a categorias
+    categorys = (await connection("category").select("id")).map((item) =>
+      Number(item.id)
+    );
+  }
 
   const user = await connection("users").where("id", "=", userId).first();
   const isAdmin = user.typeUser === "admin" ? [true, false] : [true];
 
   const products = await connection("product")
-    .whereIn("visibleApp", isAdmin) //Exibir os produto os produtos visivel e não visible
+    .whereIn("visibleApp", isAdmin) //Exibir os produto visivel e não visible do app
+    .whereIn("product.category_id", categorys)
     .join("category", "product.category_id", "category.id")
     .join("measureUnid", "product.measureUnid_id", "measureUnid.id")
     .limit(limit)
@@ -47,6 +58,7 @@ router.get("/all", async (req, res) => {
 
   await connection("product")
     .whereIn("visibleApp", isAdmin)
+    .whereIn("product.category_id", categorys)
     .count("id as count")
     .then(function (total) {
       totalProducts = total[0].count;
@@ -119,7 +131,8 @@ router.get("/group", async (req, res) => {
       .count("category_id as TotalProduct")
       .groupBy("category_id", "category.name", "category.image")
       .rightJoin("category", "product.category_id", "category.id")
-      .select("category.name", "category.image");
+      .select("category.name", "category.image")
+      .orderBy("category.name", "asc");
 
     const serialezeProduct = product.map((prod) => {
       return {
@@ -142,6 +155,9 @@ router.get("/group", async (req, res) => {
 router.get("/all/:search", async (req, res) => {
   const userId = req.userId;
   const { search } = req.params;
+  const { page = 1 } = req.query;
+  const limit = 10;
+  const skip = (page - 1) * limit;
   let totalProducts = 0;
 
   const user = await connection("users").where("id", "=", userId).first();
@@ -150,15 +166,24 @@ router.get("/all/:search", async (req, res) => {
   const products = await connection("product")
     .whereIn("visibleApp", isAdmin)
     .where("product.name", "~*", `.*${search}`)
+    .limit(limit)
+    .offset(skip)
     .join("category", "product.category_id", "category.id")
     .join("measureUnid", "product.measureUnid_id", "measureUnid.id")
     .select(
       "product.*",
       "category.name as category",
       "measureUnid.unid as measureUnid"
-    );
+    )
+    .orderBy("product.name", "asc");
 
-  totalProducts = products.length;
+  await connection("product")
+    .whereIn("visibleApp", isAdmin)
+    .where("product.name", "~*", `.*${search}`)
+    .count("id as count")
+    .then(function (total) {
+      totalProducts = total[0].count;
+    });
 
   const serialezeProduct = products.map((product) => {
     return {

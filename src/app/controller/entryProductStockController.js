@@ -31,7 +31,7 @@ router.get("/", async (req, res) => {
       "entryProductStock.*",
       "product.name",
       "product.image",
-      "product.price",
+      "product.price as priceSale",
       "product.inventory as inventoryCurrent"
     );
 
@@ -40,6 +40,7 @@ router.get("/", async (req, res) => {
 
 router.post("/create", async (req, res) => {
   const entryStock = req.body;
+
   // Checar se o objeto é um array
   if (Array.isArray(entryStock)) {
     // Percorrer todos os produtos alterando o estoque deles
@@ -79,12 +80,25 @@ router.post("/create", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
+  const { product_id, amount } = req.query;
 
   const isDelete = await connection("entryProductStock")
     .where("id", "=", id)
     .delete();
 
   if (!isDelete) return res.json({ error: "Falha ao excluir o registro." });
+
+  // Atualizar o Estoque
+  const product = await connection("product")
+    .where("id", "=", product_id)
+    .first();
+  //Criar o produto com o novo Estoque
+  const newProduct = {
+    ...product,
+    inventory: Number(product.inventory) - Number(amount),
+  };
+  // Atualizar o banco
+  await connection("product").where("id", "=", product_id).update(newProduct);
 
   return res.json({ message: "Exclusão realizada com sucesso" });
 });

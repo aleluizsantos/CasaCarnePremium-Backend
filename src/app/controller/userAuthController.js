@@ -177,7 +177,7 @@ router.get("/blocked/:id", async (req, res) => {
     });
   }
 });
-
+// Deletar um usuário
 router.delete("/userDelete/:id", async (req, res) => {
   const { id } = req.params;
   const user_id = req.userId; //Id do usuário recebido no token;
@@ -194,6 +194,65 @@ router.delete("/userDelete/:id", async (req, res) => {
       message: "Usuário não tem permissão para realizar esta ação.",
     });
   }
+});
+// Atualizar os dados de um usuário
+router.put("/users/:id", async (req, res) => {
+  const idUserLogin = req.userId;
+  const { id } = req.params;
+  const { name, email, phone } = req.body;
+  let statusUpgrade = false;
+
+  try {
+    // Checar se o usuário logado é o mesmo que esta alterando os dados
+    if (Number(idUserLogin) === Number(id)) {
+      await connection("users")
+        .where("id", "=", id)
+        .update({ name, email, phone });
+      statusUpgrade = true;
+    }
+
+    return res.json({ success: statusUpgrade });
+  } catch (error) {
+    return res.json({
+      success: false,
+      error: "Este e-mail já está adastrado.",
+    });
+  }
+});
+// Alterar a senha do usuário
+router.put("/password/:id", async (req, res) => {
+  const idUserLogin = req.userId;
+  const { id } = req.params;
+  const { oldPassword, newPassword } = req.body;
+
+  // Checar se o usuário logado é o mesmo que esta alterando a senha
+  if (Number(idUserLogin !== Number(id)))
+    return res.json({
+      success: false,
+      error: "Desculpe, você não tem permissão para fazer isto!",
+    });
+  // Buscar dados do usuário
+  const user = await connection("users")
+    .where("id", "=", id)
+    .select("*")
+    .first();
+  // Checar se usuário existe
+  if (typeof user === "undefined")
+    return res.json({ success: false, error: "Usuário não localizado" });
+  // Checar se a senha antiga passada seja igua a cadastrada
+  if (!(await bcrypt.compare(oldPassword, user.password)))
+    return res.json({
+      success: false,
+      error: "Desculpe, senha antiga não confere!",
+    });
+  // Criptografar a nova senha
+  const cryptNewPass = await bcrypt.hash(newPassword, 10);
+
+  const statusUpgrade = await connection("users").where("id", "=", id).update({
+    password: cryptNewPass,
+  });
+
+  return res.json({ success: Boolean(statusUpgrade) });
 });
 
 module.exports = (app) => app.use("/auth", router);
