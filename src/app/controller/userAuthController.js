@@ -9,14 +9,14 @@ const router = express.Router();
 //Gerar token
 function generateToken(params = {}) {
   return jwt.sign(params, process.env.AUTH_SECRET, {
-    expiresIn: 525600,
+    expiresIn: "365d",
   });
 }
 
 // Criar um usuário
 // http://dominio/auth/register
 router.post("/register", async (req, res) => {
-  const { name, email, phone, password } = req.body;
+  const { name, email, phone, password, tokenPushNotification } = req.body;
 
   if (name === "" || email === "" || phone === "" || password === "")
     return res.status(400).send({ error: "campos obrigatórios" });
@@ -37,6 +37,7 @@ router.post("/register", async (req, res) => {
       email,
       phone,
       password: crypPassword,
+      tokenPushNotification,
     };
     await trx("users").insert(user);
     await trx.commit();
@@ -58,7 +59,7 @@ router.post("/authenticate", async (req, res) => {
   const { email, password } = req.body;
 
   if (email === "" || password === "")
-    return res.status(400).send({ error: "Email ou senha em branco" });
+    return res.status(401).send({ error: "Email ou senha em branco" });
 
   const user = await connection("users")
     .where("email", "=", email)
@@ -66,7 +67,7 @@ router.post("/authenticate", async (req, res) => {
     .first();
   //Verificação se o usuário esta cadastrado
   if (user === undefined)
-    return res.status(400).send({ error: "Usuário não cadastrado" });
+    return res.status(401).send({ error: "Usuário não cadastrado" });
 
   // Verificação se passoword esta correto
   if (!(await bcrypt.compare(password, user.password)))
@@ -96,6 +97,19 @@ router.post("/authenticate", async (req, res) => {
     openClose: openClose.open_close,
     totalPedidosProcess: totalPedidosProcess.countRequest,
     totalUsers: totalUsers.countUser,
+  });
+});
+router.get("/checkToken/:token", async (req, res) => {
+  const idUserLogin = req.userId;
+  const { token } = req.params;
+  //Fazer a verificação do token usando jwt-(Json Web Token)
+  jwt.verify(token, process.env.AUTH_SECRET, async (err) => {
+    if (err) {
+      const refreshToken = generateToken({ id: idUserLogin });
+      return res.json({ refreshToken: true, token: refreshToken });
+    }
+
+    return res.json({ refreshToken: false });
   });
 });
 

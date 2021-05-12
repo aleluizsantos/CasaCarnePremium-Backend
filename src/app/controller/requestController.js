@@ -2,6 +2,7 @@ const connection = require("../../database/connection");
 const express = require("express");
 const authMiddleware = require("../middleware/auth");
 const { ValidationCoupon } = require("../utils/validationCupon");
+const { pushNotificationUser } = require("../utils/pushNotification");
 
 const router = express.Router();
 
@@ -275,7 +276,7 @@ router.put("/:id", async (req, res) => {
       break;
   }
 
-  // Atualizar o banco
+  // Atualizar o status do pedido
   const upgradeRequest = await connection("request")
     .where("id", "=", id)
     .update({
@@ -283,10 +284,7 @@ router.put("/:id", async (req, res) => {
       statusRequest_id: nextActionRequest,
     });
 
-  // Enviar para o cliente um alert do status do seu pedido
-  req.io.sockets.in(user_id).emit("UpdateStatusMyOrder", {
-    descriptionNextActionRequest: message,
-  });
+  pushNotificationUser(user_id, message);
 
   return res.status(200).json({
     success: Boolean(upgradeRequest),
