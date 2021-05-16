@@ -9,8 +9,7 @@ const router = express.Router();
 //Gerar token
 function generateToken(params = {}) {
   return jwt.sign(params, process.env.AUTH_SECRET, {
-    expiresIn: 20,
-    // expiresIn: "365d",
+    expiresIn: "365d",
   });
 }
 
