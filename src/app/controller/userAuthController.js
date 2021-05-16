@@ -9,7 +9,8 @@ const router = express.Router();
 //Gerar token
 function generateToken(params = {}) {
   return jwt.sign(params, process.env.AUTH_SECRET, {
-    expiresIn: "365d",
+    expiresIn: 20,
+    // expiresIn: "365d",
   });
 }
 
@@ -99,13 +100,15 @@ router.post("/authenticate", async (req, res) => {
     totalUsers: totalUsers.countUser,
   });
 });
+router.use(authMiddleware);
+
 router.get("/checkToken/:token", async (req, res) => {
-  const idUserLogin = req.userId;
+  const user_id = req.userId;
   const { token } = req.params;
   //Fazer a verificação do token usando jwt-(Json Web Token)
   jwt.verify(token, process.env.AUTH_SECRET, async (err) => {
     if (err) {
-      const refreshToken = generateToken({ id: idUserLogin });
+      const refreshToken = generateToken({ id: user_id });
       return res.json({ refreshToken: true, token: refreshToken });
     }
 
@@ -113,7 +116,6 @@ router.get("/checkToken/:token", async (req, res) => {
   });
 });
 
-router.use(authMiddleware);
 // Listar todos usuários cadastrados
 // http:dominio/auth/users
 router.get("/users", async (req, res) => {

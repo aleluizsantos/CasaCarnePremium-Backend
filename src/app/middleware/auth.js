@@ -45,6 +45,7 @@ module.exports = (req, res, next) => {
       return next();
     } else {
       return res.status("401").send({ error: "Usuário não cadastrado" });
+      // return res.json({ error: "Usuário não cadastrado" });
     }
   });
 };
