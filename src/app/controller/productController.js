@@ -129,9 +129,14 @@ router.get("/group", async (req, res) => {
   try {
     const product = await connection("product")
       .count("category_id as TotalProduct")
-      .groupBy("category_id", "category.name", "category.image")
+      .groupBy(
+        "category_id",
+        "category.name",
+        "category.image",
+        "category.categoryVisible"
+      )
       .rightJoin("category", "product.category_id", "category.id")
-      .select("category.name", "category.image")
+      .select("category.name", "category.image", "category.categoryVisible")
       .orderBy("category.name", "asc");
 
     const serialezeProduct = product.map((prod) => {

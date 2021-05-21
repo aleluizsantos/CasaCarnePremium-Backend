@@ -12,7 +12,9 @@ router.use(authMiddleware);
 // Listar todas as categorias dos produtos
 // http://dominio/category
 router.get("/", async (req, res) => {
-  const category = await connection("category").select("*");
+  const category = await connection("category")
+    .where("categoryVisible", "=", true)
+    .select("*");
   const serialezeCategory = category.map((cat) => {
     return {
       id: cat.id,
@@ -82,6 +84,21 @@ router.delete("/:id", async (req, res) => {
   return res.json({
     message: category ? "Excluído com sucesso" : "Falha na exclusão.",
   });
+});
+// Atualizar uma categoria
+// http://dominio/category/visible/:name
+router.put("/visible/:name", async (req, res) => {
+  const { name } = req.params;
+
+  const category = await connection("category")
+    .where("name", "=", name)
+    .first();
+
+  const upgrade = await connection("category").where("name", "=", name).update({
+    categoryVisible: !category.categoryVisible,
+  });
+
+  return res.json({ success: Boolean(upgrade) });
 });
 // Atualizar uma categoria
 // http://dominio/category/:id

@@ -69,6 +69,42 @@ router.get("/", async (req, res) => {
     return res.json(request);
   }
 });
+// Listar itens de um pedido
+// http://dominio/request/items
+router.get("/items", async (req, res) => {
+  const { request_id } = req.headers; //Id do pedido;
+
+  if (!!!request_id)
+    return res.json({ Message: "Falta do parametro HEADERS -> 'Request_id'" });
+
+  const itemsRequest = await connection("itemsRequets")
+    .where("request_id", "=", request_id)
+    .join("product", "itemsRequets.product_id", "product.id")
+    .join("measureUnid", "product.measureUnid_id", "measureUnid.id")
+    .select(
+      "itemsRequets.*",
+      "product.name",
+      "measureUnid.unid as measureUnid"
+    );
+
+  const taxaDelivery = await connection("taxaDelivery").select("*").first();
+
+  return res.json({ itemsRequest, taxaDelivery });
+});
+
+router.get("/group", async (req, res) => {
+  try {
+    const statusRequest = await connection("request")
+      .groupBy("statusRequest_id", "statusRequest.description")
+      .count("statusRequest_id as TotalStatus")
+      .join("statusRequest", "request.statusRequest_id", "statusRequest.id")
+      .select("request.statusRequest_id", "statusRequest.description");
+    return res.status(200).json(statusRequest);
+  } catch (error) {
+    return res.status(500).json({ error: "Erro no servidor." });
+  }
+});
+
 // Criar um pedido
 // http://dominio/request
 router.post("/create", async (req, res) => {
@@ -197,14 +233,21 @@ router.post("/create", async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 });
-// Listar itens de um pedido
-// http://dominio/request/items
-router.get("/items", async (req, res) => {
-  const { request_id } = req.headers; //Id do pedido;
+//Criar item do pedido
+router.post("/item", async (req, res) => {
+  const { amount, price, product_id, request_id } = req.body;
 
-  if (!!!request_id)
-    return res.json({ Message: "Falta do parametro HEADERS -> 'Request_id'" });
+  const newItemRequest = {
+    amount: Number(amount),
+    price: Number(price),
+    product_id: Number(product_id),
+    request_id: Number(request_id),
+  };
 
+  // Inserir o novo item
+  await connection("itemsRequets").insert(newItemRequest);
+
+  // Recalcular o total do pedido apos o item excluido
   const itemsRequest = await connection("itemsRequets")
     .where("request_id", "=", request_id)
     .join("product", "itemsRequets.product_id", "product.id")
@@ -215,8 +258,93 @@ router.get("/items", async (req, res) => {
       "measureUnid.unid as measureUnid"
     );
 
-  return res.json(itemsRequest);
+  // Calcular o total do carrinho
+  const totalPur = await itemsRequest.reduce(function (total, item) {
+    return total + Number(item.amount) * Number(item.price);
+  }, 0);
+
+  // Checando a taxa de entrega
+  const { vMinTaxa, taxa } = await connection("taxaDelivery").first();
+  // Checar se o total gasto é maior ou igual a taxa minima de entrega
+  const vTaxaDelivery = totalPur >= vMinTaxa ? 0 : parseFloat(taxa);
+
+  // Buscar todos os dados do pedido
+  const orders = await connection("request")
+    .where("id", "=", request_id)
+    .first();
+
+  // Alterar os dados necessário do pedido apos exclusão do item
+  const data = {
+    ...orders,
+    totalPurchase:
+      totalPur + vTaxaDelivery - totalPur * Number(orders.discount),
+    vTaxaDelivery: vTaxaDelivery,
+  };
+
+  // Atualizar o pedido com o novo valor
+  await connection("request").where("id", "=", request_id).update(data);
+
+  return res.json({ order: data, items: itemsRequest });
 });
+
+// Alterar quantidade dos itens do pedido após a preparação
+router.put("/itemChanger", async (req, res) => {
+  let changerAmount = false;
+
+  const { request_id, items, taxaDelivery, totalPurchase, user_id } = req.body;
+  try {
+    // Altarar a Tabela pedido 'request'
+    await connection("request").where("id", "=", request_id).update({
+      vTaxaDelivery: taxaDelivery,
+      totalPurchase: totalPurchase,
+    });
+
+    // Buscar todos os item do pedido
+    const itemRequest = await connection("itemsRequets")
+      .where("request_id", "=", request_id)
+      .select("*");
+
+    // Percorrer todo array da Tabela itemPedido checando se houve alteração na quantidade
+    itemRequest.forEach(async (item) => {
+      const changeItem = items.find(
+        (itemChange) => itemChange.product_id === item.product_id
+      );
+      if (Number(item.amount) !== Number(changeItem.amount)) {
+        changerAmount = true;
+        //Atualizar com a nova quantidade na tabela item do pedido
+        await connection("itemsRequets")
+          .where("id", "=", item.id)
+          .update({ amount: changeItem.amount });
+
+        // Ajustar o Estoque
+        const product = await connection("product")
+          .where("id", "=", item.product_id)
+          .first();
+        // Checar a diferença da quantidade
+        const difAmount = Number(changeItem.amount) - Number(item.amount);
+        // Calcular novo estoque
+        const stock = Number(product.inventory) - difAmount;
+
+        // Atualiza a tabela produto com o novo estoque
+        await connection("product").where("id", "=", item.product_id).update({
+          inventory: stock,
+        });
+      }
+    });
+
+    // Checar se houve alteraçaõ na quantidade notificar cliente
+    if (changerAmount)
+      pushNotificationUser(
+        user_id,
+        "Seus produtos foram pesados, verifique em seu aplicativo o pesos reais"
+      );
+
+    return res.status(200).json(true);
+  } catch (error) {
+    return res.json({ error: error.message });
+  }
+});
+
 // Alterar Status de um Pedido pedido
 // http://dominio/request/:id
 router.put("/:id", async (req, res) => {
@@ -295,27 +423,33 @@ router.put("/:id", async (req, res) => {
   });
 });
 
-router.get("/group", async (req, res) => {
-  try {
-    const statusRequest = await connection("request")
-      .groupBy("statusRequest_id", "statusRequest.description")
-      .count("statusRequest_id as TotalStatus")
-      .join("statusRequest", "request.statusRequest_id", "statusRequest.id")
-      .select("request.statusRequest_id", "statusRequest.description");
-    return res.status(200).json(statusRequest);
-  } catch (error) {
-    return res.status(500).json({ error: "Erro no servidor." });
-  }
-});
-
 //Excluir um pedido
 router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    // Ajustar o Estoque retornar produto para estoque
+    const itemsMyOrder = await connection("itemsRequets")
+      .where("request_id", "=", id)
+      .select("*");
+    // Percorrer todo o item do pedido retornado a quantidade para o estoque
+    itemsMyOrder.forEach(async (item) => {
+      // Buscar os dados do produto
+      const product = await connection("product")
+        .where("id", "=", item.product_id)
+        .first();
+      // calcular novo estoque
+      const stock = Number(product.inventory) + Number(item.amount);
+      // Atualizar estoque
+      await connection("product").where("id", "=", item.product_id).update({
+        inventory: stock,
+      });
+    });
+
     // Excluir todos os items do pedidos
     await connection("itemsRequets").where("request_id", "=", id).delete();
     // Excluir o pedido
     const myOrder = await connection("request").where("id", "=", id).delete();
+
     return res.json({ success: !!myOrder });
   } catch (error) {
     return res.json(error.message);
@@ -327,6 +461,15 @@ router.delete("/item/:id", async (req, res) => {
   const { request_id } = req.headers; //id do pedido
 
   try {
+    // Ajustar o estoque
+    const item = await connection("itemsRequets").where("id", "=", id).first();
+    const product = await connection("product")
+      .where("id", "=", item.product_id)
+      .first();
+    const stock = Number(product.inventory) + Number(item.amount);
+    await connection("product").where("id", "=", item.product_id).update({
+      inventory: stock,
+    });
     // Exluir o item do pedido
     const isDelete = await connection("itemsRequets")
       .where("id", "=", id)
@@ -334,7 +477,7 @@ router.delete("/item/:id", async (req, res) => {
       .delete();
 
     if (!!isDelete) {
-      // Recalcular o totla do pedido apos o item excluido
+      // Recalcular o total do pedido apos o item excluido
       const itemsRequest = await connection("itemsRequets")
         .where("request_id", "=", request_id)
         .select("*");
@@ -364,6 +507,7 @@ router.delete("/item/:id", async (req, res) => {
 
       // Atualizar o pedido com o novo valor
       await connection("request").where("id", "=", request_id).update(data);
+
       return res.json(data);
     } else {
       return res.json({
@@ -375,59 +519,6 @@ router.delete("/item/:id", async (req, res) => {
     return res.json({ error: error.message });
   }
 });
-//Criar item do pedido
-router.post("/item", async (req, res) => {
-  const { amount, price, product_id, request_id } = req.body;
-
-  const newItemRequest = {
-    amount: Number(amount),
-    price: Number(price),
-    product_id: Number(product_id),
-    request_id: Number(request_id),
-  };
-
-  // Inserir o novo item
-  await connection("itemsRequets").insert(newItemRequest);
-
-  // Recalcular o totla do pedido apos o item excluido
-  const itemsRequest = await connection("itemsRequets")
-    .where("request_id", "=", request_id)
-    .join("product", "itemsRequets.product_id", "product.id")
-    .join("measureUnid", "product.measureUnid_id", "measureUnid.id")
-    .select(
-      "itemsRequets.*",
-      "product.name",
-      "measureUnid.unid as measureUnid"
-    );
-
-  // Calcular o total do carrinho
-  const totalPur = await itemsRequest.reduce(function (total, item) {
-    return total + Number(item.amount) * Number(item.price);
-  }, 0);
-
-  // Checando a taxa de entrega
-  const { vMinTaxa, taxa } = await connection("taxaDelivery").first();
-  // Checar se o total gasto é maior ou igual a taxa minima de entrega
-  const vTaxaDelivery = totalPur >= vMinTaxa ? 0 : parseFloat(taxa);
-
-  // Buscar todos os dados do pedido
-  const orders = await connection("request")
-    .where("id", "=", request_id)
-    .first();
-
-  // Alterar os dados necessário do pedido apos exclusão do item
-  const data = {
-    ...orders,
-    totalPurchase:
-      totalPur + vTaxaDelivery - totalPur * Number(orders.discount),
-    vTaxaDelivery: vTaxaDelivery,
-  };
-
-  // Atualizar o pedido com o novo valor
-  await connection("request").where("id", "=", request_id).update(data);
-
-  return res.json({ order: data, items: itemsRequest });
-});
 
 function upgradeStoreProduct(itemsOrder) {
   itemsOrder.map(async (item) => {
@@ -435,14 +526,10 @@ function upgradeStoreProduct(itemsOrder) {
       .where("id", "=", item.product_id)
       .first();
 
-    const newStoreProduct = {
-      ...product,
-      inventory: Number(product.inventory) - Number(item.amount),
-    };
-
-    await connection("product")
-      .where("id", "=", item.product_id)
-      .update(newStoreProduct);
+    const stock = Number(product.inventory) - Number(item.amount);
+    await connection("product").where("id", "=", item.product_id).update({
+      inventory: stock,
+    });
   });
 }
 
