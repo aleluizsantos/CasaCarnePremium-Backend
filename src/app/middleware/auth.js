@@ -33,14 +33,11 @@ module.exports = (req, res, next) => {
 
     const user = await connection("users").where("id", "=", decoded.id).first();
     if (!!user) {
-      if (user.tokenPushNotification !== tokenPushNotification) {
-        await connection("users")
-          .where("id", "=", decoded.id)
-          .update({
-            ...user,
-            tokenPushNotification,
-          });
-      }
+      // if (user.tokenPushNotification !== tokenPushNotification) {
+      //   await connection("users").where("id", "=", decoded.id).update({
+      //     tokenPushNotification,
+      //   });
+      // }
       req.userId = decoded.id;
       return next();
     } else {

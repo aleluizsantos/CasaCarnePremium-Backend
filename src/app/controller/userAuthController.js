@@ -99,6 +99,7 @@ router.post("/authenticate", async (req, res) => {
     totalUsers: totalUsers.countUser,
   });
 });
+
 router.use(authMiddleware);
 
 router.get("/checkToken/:token", async (req, res) => {
@@ -114,7 +115,6 @@ router.get("/checkToken/:token", async (req, res) => {
     return res.json({ refreshToken: false });
   });
 });
-
 // Listar todos usuários cadastrados
 // http:dominio/auth/users
 router.get("/users", async (req, res) => {
@@ -230,7 +230,7 @@ router.put("/users/:id", async (req, res) => {
   } catch (error) {
     return res.json({
       success: false,
-      error: "Este e-mail já está adastrado.",
+      error: "E-mail já vinculado a um usuário",
     });
   }
 });

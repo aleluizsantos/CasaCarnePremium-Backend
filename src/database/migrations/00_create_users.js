@@ -10,7 +10,7 @@ exports.up = async function (knex) {
     table.string("typeUser").notNullable().defaultTo("user");
     table.boolean("blocked").defaultTo(false);
     table.timestamp("created_at").defaultTo(knex.fn.now());
-    table.string("tokenPushNotification").notNullable().unique();
+    table.string("tokenPushNotification").nullable();
   });
 };
 
