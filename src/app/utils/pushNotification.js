@@ -28,7 +28,6 @@ module.exports = {
   async pushNotificationUser(userId, msg) {
     const user = await connection("users").where("id", "=", userId).first();
     const { tokenPushNotification } = user;
-    console.log(tokenPushNotification);
     pushNotification(tokenPushNotification, msg);
   },
 

@@ -65,7 +65,7 @@ router.post("/create", upload.single("image"), async (req, res) => {
     await trx("category").insert(categoryData);
     await trx.commit();
 
-    req.io.emit("Update", { update: categoryData });
+    req.io.emit("Update", { timeStamp: new Date().getTime() });
 
     return res.json({ Message: "success", categoryData });
   } catch (error) {
@@ -97,6 +97,8 @@ router.put("/visible/:name", async (req, res) => {
   const upgrade = await connection("category").where("name", "=", name).update({
     categoryVisible: !category.categoryVisible,
   });
+
+  req.io.emit("Update", { timeStamp: new Date().getTime() });
 
   return res.json({ success: Boolean(upgrade) });
 });
@@ -137,7 +139,7 @@ router.put("/:id", upload.single("image"), async (req, res) => {
 
     await connection("category").where("id", "=", id).update(categoryUpdate);
 
-    req.io.emit("Update", { update: categoryUpdate });
+    req.io.emit("Update", { timeStamp: new Date().getTime() });
 
     return res.json({ message: "Atualização realizada com sucesso" });
   } catch (error) {

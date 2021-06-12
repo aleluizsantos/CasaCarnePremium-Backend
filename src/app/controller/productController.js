@@ -316,7 +316,7 @@ router.post("/create", upload.single("image"), async (req, res) => {
     await trx.commit();
 
     // Emimitr sinal de atualização no banco novo produto
-    req.io.emit("Update", { update: product });
+    req.io.emit("Update", { timeStamp: new Date().getTime() });
 
     return res.json({ success: true, product });
   } catch (error) {
@@ -357,7 +357,7 @@ router.delete("/:id", async (req, res) => {
 
     const productBD = await connection("product").where("id", id).delete();
 
-    req.io.emit("Update", { update: productBD });
+    req.io.emit("Update", { timeStamp: new Date().getTime() });
 
     return res.json({ message: productBD ? "Excluído com sucesso" : "Erro" });
   } catch (error) {
@@ -431,7 +431,7 @@ router.put("/:id", upload.single("image"), async (req, res) => {
 
     await connection("product").where("id", "=", id).update(productUpdate);
 
-    req.io.emit("Update", { update: Date.now() });
+    req.io.emit("Update", { timeStamp: new Date().getTime() });
 
     return res.json({
       success: true,
