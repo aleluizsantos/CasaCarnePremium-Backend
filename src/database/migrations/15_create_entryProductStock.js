@@ -1,5 +1,5 @@
 exports.up = async function (knex) {
-  return knex.schema.createTable("openingHours", (table) => {
+  return knex.schema.createTable("entryProductStock", (table) => {
     table.increments("id").primary;
     table.datetime("data_entry").notNullable();
     table.decimal("amount", 6, 2).notNullable();

@@ -119,6 +119,9 @@ router.get("/checkToken/:token", async (req, res) => {
 // http:dominio/auth/users
 router.get("/users", async (req, res) => {
   const users = await connection("users")
+    .where("typeUser", "=", "user")
+    .leftJoin("addressUser", "users.id", "addressUser.user_id")
+    .where("addressUser.active", "=", true)
     .select(
       "users.id",
       "users.name",
@@ -128,7 +131,12 @@ router.get("/users", async (req, res) => {
       "users.passwordResetExpires",
       "users.typeUser",
       "users.blocked",
-      "users.created_at"
+      "users.tokenPushNotification",
+      "users.created_at",
+      "addressUser.address",
+      "addressUser.number",
+      "addressUser.neighborhood",
+      "addressUser.city"
     )
     .orderBy("name", "asc");
 
@@ -170,25 +178,28 @@ router.get("/blocked/:id", async (req, res) => {
   const { id } = req.params;
   const user_id = req.userId; //Id do usuário recebido no token;
 
+  // Buscar dados do usuário
   const userAdm = await connection("users")
     .where("id", "=", user_id)
     .where("typeUser", "=", "admin")
     .first();
-
+  // Checar se o usuário é administrador
+  // caso negativo não pode desbloquear
   if (userAdm !== undefined) {
     const user = await connection("users")
       .where("id", "=", id)
       .select("blocked")
       .first();
-
-    const updateUser = await connection("users")
+    // Gravando as alterações no banco se usuário tive bloqueado
+    // será desbloqueado ou vice-versa
+    await connection("users")
       .where("id", "=", id)
       .update({ blocked: !user.blocked });
 
-    return res.json(updateUser);
+    return res.json(!user.blocked);
   } else {
     return res.json({
-      message: "Usuário não tem permissão para realizar esta ação.",
+      error: "Usuário não tem permissão para realizar esta ação.",
     });
   }
 });

@@ -6,7 +6,7 @@ const cors = require("cors");
 require("dotenv").config();
 
 const errorHandler = require("./errors/handler");
-
+const PORT = process.env.PORT || 3333;
 const app = express();
 
 //Fazer com que a aplicação ousa tanto o protocolo http quanto socket
@@ -30,19 +30,20 @@ app.use("/uploads", express.static(path.resolve(__dirname, "..", "uploads")));
 //e coloca na aplicação
 require("./app/controller/index")(app);
 
-server.listen(process.env.PORT || 3333, function () {
-  console.log("..::Servidor online::..");
+server.listen(PORT, function () {
+  console.log(`..::Servidor online - PORT: ${PORT}::..`);
 });
 
 let clients = [];
 io.on("connection", function (socket) {
-  socket.on("join", function (data) {
-    !clients.includes(socket.id) && clients.push(socket.id);
-    socket.join(data.user_id);
-  });
-  // on disconnected, unregister
+  !clients.includes(socket.id) && clients.push(socket.id);
+  // socket.on("join", function (data) {
+  //   !clients.includes(socket.id) && clients.push(socket.id);
+  //   socket.join(data.user_id);
+  // });
   socket.on("disconnect", function () {
     clients = clients.filter((item) => item !== socket.id);
+    socket.broadcast.emit("onlineClients", clients.length);
   });
 
   socket.broadcast.emit("onlineClients", clients.length);

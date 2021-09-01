@@ -8,12 +8,7 @@ router.use(authMiddleware);
 // Listar todos os endereços de um usuário
 // http://dominio/address
 router.get("/", async (req, res) => {
-  const user_id = req.userId;
-  // Verificação se o user_id foi passado
-  if (!user_id) return res.json({ message: "Erro falta de identificação" });
-
-  const addr = await connection("addressStore").select("*").first();
-
+  const addr = await connection("addressStore").select("*");
   return res.json(addr);
 });
 // Listar criar um endereço de usuário
@@ -86,4 +81,13 @@ router.delete("/delete/:id", async (req, res) => {
   }
 });
 
+// Editar endereço do Estabelecimento
+router.put("/edit/:id", async (req, res) => {
+  const { id } = req.params;
+  const dataAddr = ({ address, cep, city, neighborhood, number } = req.body);
+  // Atualizar os dados
+  await connection("addressStore").where("id", "=", id).update(dataAddr);
+
+  return res.json(dataAddr);
+});
 module.exports = (app) => app.use("/addressStore", router);

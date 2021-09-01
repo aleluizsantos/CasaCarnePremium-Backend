@@ -46,18 +46,42 @@ router.get("/saleDay", async (req, res) => {
  * @returns Array total vendas por semana [dom, ... , sab]
  */
 router.get("/saleWeek", async (req, res) => {
-  const now = new Date();
+  const { dateCurrent } = req.query;
+  const dateUTC = new Date();
 
-  // Verificar o dia da semana 0=Domingo, ... ,  6=Sabado
-  const isDateWeek = now.getDay();
-  // Buscar o dia que inicia a semana
-  const dateStart = dateFns.subDays(now, Number(isDateWeek));
-  // Buscar o dia que termina a semana
-  const dateEnd = dateFns.addDays(now, 6 - Number(isDateWeek));
+  let now;
+
+  if (typeof dateCurrent === "undefined") {
+    now = new Date(dateUTC.valueOf() - dateUTC.getTimezoneOffset() * 60000);
+  } else {
+    now = new Date(dateCurrent);
+  }
+
+  // retorna o dia da semana para a data especificada de acordo
+  // com a hora local, onde 0 representa o Domingo, 1 segunda .....
+  const week = now.getDay();
+
+  // Buscar o dia que inicia a semana, configurado para iniciar a semanda
+  // na SEGUNDA-FEIRA e terminar no DOMINGO
+  // const dateStart = dateFns.subDays(now, Number(week));
+  const dateStart = dateFns.subDays(
+    now,
+    Number(week) === 0 ? 6 : Number(week - 1)
+  );
+  // Dia do termino da semana
+  const dateEnd = dateFns.addDays(dateStart, 7);
+
+  // formatar data no formato ISO 8601
+  let from = dateStart.getFullYear().toString() + "-";
+  from += (dateStart.getMonth() + 1).toString().padStart(2, "0") + "-";
+  from += dateStart.getDate().toString().padStart(2, "0") + "T03:00:00Z";
+
+  let to = dateEnd.getFullYear().toString() + "-";
+  to += (dateEnd.getMonth() + 1).toString().padStart(2, "0") + "-";
+  to += dateEnd.getDate().toString().padStart(2, "0") + "T02:59:59Z";
 
   const saleWeek = await connection("request")
-    .where("dateTimeOrder", ">=", dateStart)
-    .where("dateTimeOrder", "<=", dateEnd)
+    .whereBetween("dateTimeOrder", [from, to])
     .select("dateTimeOrder", "totalPurchase");
 
   // Somar vendas por semana
@@ -102,15 +126,18 @@ router.get("/saleWeek", async (req, res) => {
     }
   });
 
-  return res.json([
-    totalSun,
-    totalMon,
-    totalTue,
-    totalWed,
-    totalThu,
-    totalFri,
-    totalSat,
-  ]);
+  return res.json({
+    interval: { from, to },
+    data: [
+      totalMon,
+      totalTue,
+      totalWed,
+      totalThu,
+      totalFri,
+      totalSat,
+      totalSun,
+    ],
+  });
 });
 
 /**
