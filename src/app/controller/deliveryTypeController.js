@@ -5,8 +5,6 @@ const authMiddleware = require("../middleware/auth");
 
 const router = express.Router();
 
-router.use(authMiddleware);
-
 // Listar todas tipos de entregas
 // http://dominio/deliverytype
 router.get("/", async (req, res) => {
@@ -22,6 +20,8 @@ router.get("/:id", async (req, res) => {
     .select("*");
   return res.json(deliveryType);
 });
+
+router.use(authMiddleware);
 // Criar um tipo de entrega
 // http://dominio/deliveryType/create
 router.post("/create", async (req, res) => {

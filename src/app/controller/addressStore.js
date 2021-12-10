@@ -4,13 +4,24 @@ const authMiddleware = require("../middleware/auth");
 
 const router = express.Router();
 
-router.use(authMiddleware);
-// Listar todos os endereços de um usuário
-// http://dominio/address
+// Listar enderço da loja
+// http://dominio/addressStore
 router.get("/", async (req, res) => {
-  const addr = await connection("addressStore").select("*");
-  return res.json(addr);
+  const addr = await connection("addressStore").select("*").first();
+  const user = await connection("users")
+    .where("typeUser", "=", "admin")
+    .select("*")
+    .first();
+
+  const data = {
+    ...addr,
+    email: user.email,
+  };
+
+  return res.json(data);
 });
+
+router.use(authMiddleware);
 // Listar criar um endereço de usuário
 // http://dominio/address
 router.post("/create", async (req, res) => {
@@ -80,7 +91,6 @@ router.delete("/delete/:id", async (req, res) => {
     return res.json({ error: "Você não tem permissão para excluir." });
   }
 });
-
 // Editar endereço do Estabelecimento
 router.put("/edit/:id", async (req, res) => {
   const { id } = req.params;

@@ -7,8 +7,15 @@ const router = express.Router();
 // Listar Operação Aberto / Fechado
 // http://dominio/status
 router.get("/", async (req, res) => {
+  const taxaDelivery = await connection("taxaDelivery").first().select("*");
+  const deliveryTyper = await connection("deliveryType").select("*");
   const operation = await connection("operation").first().select("*");
-  return res.json(operation);
+
+  return res.json({
+    open_close: operation.open_close,
+    taxaDelivery,
+    deliveryTyper,
+  });
 });
 
 router.use(authMiddleware);
@@ -28,7 +35,7 @@ router.put("/", async (req, res) => {
         open_close: valueOpenClose,
       });
 
-      req.io.emit("Operation", {
+      req.io.emit("operation", {
         open_close: valueOpenClose,
       });
       return res.json({

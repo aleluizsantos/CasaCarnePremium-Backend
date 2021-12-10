@@ -1,9 +1,9 @@
 exports.seed = async function (knex) {
   await knex("users").insert([
     {
-      name: "Rodrigo Giroto",
+      name: "Casa Carne Premium",
       email: "casacarnepremium@gmail.com",
-      phone: "(17) 99683-4236",
+      phone: "(17) 99663-4236",
       password: "$2a$10$ag3gNBv9wXR43I0FOjY6weW9pBkSytFavLxUdkf7EWB75BDyKmvPm",
       typeUser: "admin",
       blocked: "false",
@@ -12,8 +12,7 @@ exports.seed = async function (knex) {
 
   await knex("deliveryType").insert([
     { description: "Delivery" },
-    { description: "Retirar loja" },
-    { description: "Agendado" },
+    { description: "Retirada" },
   ]);
 
   await knex("operation").insert([{ open_close: false }]);

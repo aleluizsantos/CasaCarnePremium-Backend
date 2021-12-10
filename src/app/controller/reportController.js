@@ -9,20 +9,24 @@ router.use(authMiddleware);
 
 /**
  * Relatório de Vendas diárias
- * @param {} app
- * @returns
+ * @returns Object { saleDay, totalSaleDay }
  */
 router.get("/saleDay", async (req, res) => {
-  let dateNow = new Date();
+  const dateUTC = new Date();
+
+  const from = new Date(
+    dateUTC.valueOf() - dateUTC.getTimezoneOffset() * 60000
+  );
+  const to = dateFns.addDays(from, 1);
 
   // formatar data no formato ISO 8601
-  let dateStart = dateNow.getFullYear().toString() + "-";
-  dateStart += (dateNow.getMonth() + 1).toString().padStart(2, "0") + "-";
-  dateStart += dateNow.getDate().toString().padStart(2, "0") + "T00:00:00";
+  let dateStart = from.getFullYear().toString() + "-";
+  dateStart += (from.getMonth() + 1).toString().padStart(2, "0") + "-";
+  dateStart += from.getDate().toString().padStart(2, "0") + "T03:00:00Z";
 
-  let dateEnd = dateNow.getFullYear().toString() + "-";
-  dateEnd += (dateNow.getMonth() + 1).toString().padStart(2, "0") + "-";
-  dateEnd += dateNow.getDate().toString().padStart(2, "0") + "T23:59:59";
+  let dateEnd = to.getFullYear().toString() + "-";
+  dateEnd += (to.getMonth() + 1).toString().padStart(2, "0") + "-";
+  dateEnd += to.getDate().toString().padStart(2, "0") + "T02:59:59Z";
 
   const saleDay = await connection("request")
     .where("dateTimeOrder", ">", dateStart)
@@ -42,7 +46,7 @@ router.get("/saleDay", async (req, res) => {
 
 /**
  * Relatório de Vendas Semana
- * @param {Date} Recebe a data base
+ * @param {Date} dateCurrent a data base
  * @returns Array total vendas por semana [dom, ... , sab]
  */
 router.get("/saleWeek", async (req, res) => {
@@ -149,8 +153,8 @@ router.get("/saleYear", async (req, res) => {
 
   const year = dateCurrent.getFullYear();
 
-  const dateStart = `${year}-01-01T00:00:00Z`;
-  const dateEnd = `${year}-12-31T23:59:59Z`;
+  const dateStart = `${year}-01-01T03:00:00`;
+  const dateEnd = `${year + 1}-01-01T02:59:59`;
 
   const saleYear = await connection("request")
     .where("dateTimeOrder", ">=", dateStart)
@@ -235,11 +239,89 @@ router.get("/saleYear", async (req, res) => {
 
 /**
  * Relatório de Vendas por Periodo
- * @param {} app
- * @returns
  */
 router.get("/salePeriod", async (req, res) => {
   return;
+});
+
+/**
+ * Retoran os Top 10 dos cliente, Produtos, tipo Pagamento e tipo de entrega
+ */
+router.get("/top10", async (req, res) => {
+  // Top 10 do melhores cliente
+  const top10Client = await connection("request")
+    .groupBy("user_id", "address", "users.name")
+    .join("users", "request.user_id", "users.id")
+    .count("user_id as amountOrder")
+    .sum("totalPurchase as totalPur")
+    .orderBy("amountOrder", "desc")
+    .orderBy("totalPur", "desc")
+    .limit(10)
+    .select("request.user_id", "request.address", "users.name");
+
+  // Top 10 do Produtos
+  const top10Product = await connection("itemsRequets")
+    .groupBy("product_id", "product.name")
+    .join("product", "itemsRequets.product_id", "product.id")
+    .sum("itemsRequets.amount as amountProduct")
+    .orderBy("amountProduct", "desc")
+    .limit(10)
+    .select("itemsRequets.product_id", "product.name");
+
+  const serializeTop10Product = top10Product.map((item) => {
+    return {
+      ...item,
+      amountProduct: parseInt(item.amountProduct),
+    };
+  });
+
+  // Top Pagamentos | tipo de entrega
+  const topDelivery = await connection("request")
+    .groupBy("request.deliveryType_id", "deliveryType.description")
+    .join("deliveryType", "request.deliveryType_id", "deliveryType.id")
+    .count("deliveryType_id as amountTypeDelivery")
+    .orderBy("amountTypeDelivery", "desc")
+    .limit(10)
+    .select("request.deliveryType_id", "deliveryType.description");
+
+  let labelTopDeliv = [];
+  let dataTopDeliv = [];
+  topDelivery.forEach((element) => {
+    labelTopDeliv.push(element.description);
+    dataTopDeliv.push(element.amountTypeDelivery);
+  });
+
+  const serializeTopDelivery = {
+    data: topDelivery,
+    graphic: { label: labelTopDeliv, data: dataTopDeliv },
+  };
+
+  // Top Pagamentos | tipo de entrega
+  const topPayDelivery = await connection("request")
+    .groupBy("request.payment_id", "payment.type", "payment.image")
+    .join("payment", "request.payment_id", "payment.id")
+    .count("payment_id as amountPayDelivery")
+    .orderBy("amountPayDelivery", "desc")
+    .limit(10)
+    .select("request.payment_id", "payment.type", "payment.image");
+
+  let labelTopPayDeliv = [];
+  let dataTopPayDeliv = [];
+  topPayDelivery.forEach((element) => {
+    labelTopPayDeliv.push(element.type);
+    dataTopPayDeliv.push(element.amountPayDelivery);
+  });
+  const serializeTopPayDelivery = {
+    data: topPayDelivery,
+    graphic: { label: labelTopPayDeliv, data: dataTopPayDeliv },
+  };
+
+  return res.status(200).json({
+    top10Client: top10Client,
+    top10Product: serializeTop10Product,
+    topPayDelivery: serializeTopPayDelivery,
+    topDelivery: serializeTopDelivery,
+  });
 });
 
 module.exports = (app) => app.use("/report", router);

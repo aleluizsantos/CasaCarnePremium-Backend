@@ -7,8 +7,8 @@ const config =
     ? configuration.production
     : configuration.development;
 
-console.log("Model development >> ", process.env.NODE_ENV);
-
 const connection = knex(config);
+
+console.log("Model development >> ", process.env.NODE_ENV);
 
 module.exports = connection;

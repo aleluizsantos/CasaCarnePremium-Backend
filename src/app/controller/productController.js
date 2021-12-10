@@ -7,16 +7,14 @@ const Yup = require("yup");
 const uploadConfig = require("../../config/upload");
 const connection = require("../../database/connection");
 const authMiddleware = require("../middleware/auth");
+const headersAuth = require("../middleware/headersAuth");
+const { pushNotificationAllUsers } = require("../utils/pushNotification");
 const router = express.Router();
 const upload = multer(uploadConfig);
 
 const format = require("../utils/format");
-/**
- * Middleware interceptador verificar autenticidade do usuário
- * logado no sistema
- */
-router.use(authMiddleware);
 
+router.use(headersAuth);
 /**
  * Listar todos os produtos, pela categoria
  * http://dominio/product
@@ -39,8 +37,13 @@ router.get("/all", async (req, res) => {
     );
   }
 
-  const user = await connection("users").where("id", "=", userId).first();
-  const isAdmin = user.typeUser === "admin" ? [true, false] : [true];
+  let isAdmin;
+  if (userId === null || typeof userId === "undefined") {
+    isAdmin = [true];
+  } else {
+    const user = await connection("users").where("id", "=", userId).first();
+    isAdmin = user.typeUser === "admin" ? [true, false] : [true];
+  }
 
   const products = await connection("product")
     .whereIn("visibleApp", isAdmin) //Exibir os produto visivel e não visible do app
@@ -52,7 +55,8 @@ router.get("/all", async (req, res) => {
     .select(
       "product.*",
       "category.name as category",
-      "measureUnid.unid as measureUnid"
+      "measureUnid.unid as measureUnid",
+      "measureUnid.valueIncrement"
     )
     .orderBy("product.name", "asc");
 
@@ -91,8 +95,14 @@ router.get("/", async (req, res) => {
 
   const categorys = category_id.split(",").map((cat) => Number(cat.trim()));
 
-  const user = await connection("users").where("id", "=", userId).first();
-  const isAdmin = user.typeUser === "admin" ? [true, false] : [true];
+  let isAdmin;
+
+  if (userId === null || typeof userId === "undefined") {
+    isAdmin = [true];
+  } else {
+    const user = await connection("users").where("id", "=", userId).first();
+    isAdmin = user.typeUser === "admin" ? [true, false] : [true];
+  }
 
   const products = await connection("product")
     .whereIn("visibleApp", isAdmin)
@@ -102,7 +112,8 @@ router.get("/", async (req, res) => {
     .select(
       "product.*",
       "category.name as category",
-      "measureUnid.unid as measureUnid"
+      "measureUnid.unid as measureUnid",
+      "measureUnid.valueIncrement"
     )
     .orderBy("product.name", "asc");
 
@@ -131,12 +142,18 @@ router.get("/group", async (req, res) => {
       .count("category_id as TotalProduct")
       .groupBy(
         "category_id",
+        "category.id",
         "category.name",
         "category.image",
         "category.categoryVisible"
       )
       .rightJoin("category", "product.category_id", "category.id")
-      .select("category.name", "category.image", "category.categoryVisible")
+      .select(
+        "category.id as categoryId",
+        "category.name",
+        "category.image",
+        "category.categoryVisible"
+      )
       .orderBy("category.name", "asc");
 
     const serialezeProduct = product.map((prod) => {
@@ -165,8 +182,14 @@ router.get("/all/:search", async (req, res) => {
   const skip = (page - 1) * limit;
   let totalProducts = 0;
 
-  const user = await connection("users").where("id", "=", userId).first();
-  const isAdmin = user.typeUser === "admin" ? [true, false] : [true];
+  let isAdmin;
+
+  if (userId === null || typeof userId === "undefined") {
+    isAdmin = [true];
+  } else {
+    const user = await connection("users").where("id", "=", userId).first();
+    isAdmin = user.typeUser === "admin" ? [true, false] : [true];
+  }
 
   const products = await connection("product")
     .whereIn("visibleApp", isAdmin)
@@ -209,9 +232,14 @@ router.get("/all/:search", async (req, res) => {
  */
 router.get("/promotion", async (req, res) => {
   const userId = req.userId;
+  let isAdmin;
 
-  const user = await connection("users").where("id", "=", userId).first();
-  const isAdmin = user.typeUser === "admin" ? [true, false] : [true];
+  if (userId === null || typeof userId === "undefined") {
+    isAdmin = [true];
+  } else {
+    const user = await connection("users").where("id", "=", userId).first();
+    isAdmin = user.typeUser === "admin" ? [true, false] : [true];
+  }
 
   const products = await connection("product")
     .whereIn("visibleApp", isAdmin)
@@ -251,6 +279,8 @@ router.get("/:id", async (req, res) => {
   return res.json(serialezeProduct);
 });
 
+router.use(authMiddleware);
+
 /**
  * Criar um Produto
  * http://dominio/produto/create
@@ -262,7 +292,7 @@ router.post("/create", upload.single("image"), async (req, res) => {
   if (!!requestImage) {
     nameImage = requestImage.filename;
   } else {
-    nameImage = "default.png";
+    nameImage = "default.jpg";
   }
 
   const pathFile = !!nameImage
@@ -272,13 +302,15 @@ router.post("/create", upload.single("image"), async (req, res) => {
   const {
     name,
     description,
+    ingredient,
     price,
     promotion,
     pricePromotion,
     category_id,
     measureUnid_id,
     visibleApp,
-    inventory,
+    additional,
+    valueDefautAdditional,
   } = req.body;
 
   const schema = Yup.object().shape({
@@ -290,22 +322,24 @@ router.post("/create", upload.single("image"), async (req, res) => {
     pricePromotion: Yup.number().required(),
     category_id: Yup.number().integer(),
     measureUnid_id: Yup.number().integer(),
-    inventory: Yup.number(),
     visibleApp: Yup.boolean().required(),
   });
 
   const product = {
     name,
     description,
+    ingredient,
     price: Number(price),
     image: nameImage,
     promotion: format.isboolean(promotion),
     pricePromotion: format.isboolean(promotion) ? Number(pricePromotion) : 0,
+    additional,
+    valueDefautAdditional,
     category_id: Number(category_id),
     measureUnid_id: Number(measureUnid_id),
     visibleApp: format.isboolean(visibleApp),
-    inventory: Number(inventory),
   };
+
   schema.validateSync(product, { abortEarly: false });
 
   try {
@@ -316,14 +350,14 @@ router.post("/create", upload.single("image"), async (req, res) => {
     await trx.commit();
 
     // Emimitr sinal de atualização no banco novo produto
-    req.io.emit("Update", { timeStamp: new Date().getTime() });
+    req.io.emit("Update", { update: Date.now() });
 
     return res.json({ success: true, product });
   } catch (error) {
     // Exluir o arquivo
     if (fs.existsSync(pathFile)) {
-      // Excluir somente se o arquivo não foi "default.png"
-      nameImage !== "default.png" && fs.unlinkSync(pathFile);
+      // Excluir somente se o arquivo não foi "default.jpg"
+      nameImage !== "default.jpg" && fs.unlinkSync(pathFile);
     }
   }
 });
@@ -352,12 +386,12 @@ router.delete("/:id", async (req, res) => {
     );
 
     if (fs.existsSync(pathFile)) {
-      product.image !== "default.png" && fs.unlinkSync(pathFile);
+      product.image !== "default.jpg" && fs.unlinkSync(pathFile);
     }
 
-    const productBD = await connection("product").where("id", id).delete();
+    const productBD = await connection("product").where("id", "=", id).delete();
 
-    req.io.emit("Update", { timeStamp: new Date().getTime() });
+    req.io.emit("Update", { update: Date.now() });
 
     return res.json({ message: productBD ? "Excluído com sucesso" : "Erro" });
   } catch (error) {
@@ -372,16 +406,20 @@ router.delete("/:id", async (req, res) => {
  */
 router.put("/:id", upload.single("image"), async (req, res) => {
   const { id } = req.params;
+  const { changeimage } = req.headers;
+
   const {
     name,
     description,
+    ingredient,
     price,
     promotion,
     pricePromotion,
     category_id,
     measureUnid_id,
     visibleApp,
-    inventory,
+    additional,
+    valueDefautAdditional,
   } = req.body;
 
   const requestImage = req.file;
@@ -392,6 +430,7 @@ router.put("/:id", upload.single("image"), async (req, res) => {
 
   let pathFileOld = null;
   let nameImage;
+
   // Checar se foi enviada uma nova imgage
   if (!!requestImage) {
     // Nome da image nova
@@ -406,32 +445,43 @@ router.put("/:id", upload.single("image"), async (req, res) => {
       dataProductOld.image
     );
   } else {
-    // Nome da image antiga não houve atualização na image
-    nameImage = dataProductOld.image;
+    // Como não houve alteração na imagem
+    // manter a imagem anterior
+    nameImage = changeimage === "true" ? "default.jpg" : dataProductOld.image;
   }
   try {
     const productUpdate = {
       name,
       description,
+      ingredient,
       price: Number(price),
       image: nameImage,
       promotion: format.isboolean(promotion),
       pricePromotion: format.isboolean(promotion) ? Number(pricePromotion) : 0,
       category_id: Number(category_id),
       measureUnid_id: Number(measureUnid_id),
+      additional,
+      valueDefautAdditional,
       visibleApp: format.isboolean(visibleApp),
-      inventory: Number(inventory),
     };
     // Excluir o arquivo do produto antigo
     if (pathFileOld !== null) {
       if (fs.existsSync(pathFileOld)) {
-        dataProductOld.image !== "default.png" && fs.unlinkSync(pathFileOld);
+        dataProductOld.image !== "default.jpg" && fs.unlinkSync(pathFileOld);
       }
     }
 
     await connection("product").where("id", "=", id).update(productUpdate);
 
-    req.io.emit("Update", { timeStamp: new Date().getTime() });
+    req.io.emit("Update", { update: Date.now() });
+
+    // Enviar para notificação push
+    if (productUpdate.promotion) {
+      pushNotificationAllUsers(
+        "PROMOÇÃO",
+        `${name.toUpperCase()} por apenas R$ ${pricePromotion} `
+      );
+    }
 
     return res.json({
       success: true,

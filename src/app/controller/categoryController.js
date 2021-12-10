@@ -7,13 +7,12 @@ const upload = require("../../config/upload");
 const connection = require("../../database/connection");
 const router = express.Router();
 
-router.use(authMiddleware);
-
 // Listar todas as categorias dos produtos
 // http://dominio/category
 router.get("/", async (req, res) => {
   const category = await connection("category")
     .where("categoryVisible", "=", true)
+    .orderBy("name", "asc")
     .select("*");
   const serialezeCategory = category.map((cat) => {
     return {
@@ -39,6 +38,8 @@ router.get("/:id", async (req, res) => {
   });
   return res.json(serialezecategory);
 });
+
+router.use(authMiddleware);
 // Criar uma categoria
 // http://dominio/category/create
 router.post("/create", upload.single("image"), async (req, res) => {
@@ -52,7 +53,7 @@ router.post("/create", upload.single("image"), async (req, res) => {
   if (!!requestImage) {
     pathImage = requestImage.filename;
   } else {
-    pathImage = "default.png";
+    pathImage = "default.jpg";
   }
 
   try {
@@ -62,14 +63,21 @@ router.post("/create", upload.single("image"), async (req, res) => {
       image: pathImage,
     };
     // Inserir categoria
-    await trx("category").insert(categoryData);
+    const categoryId = await trx("category").insert(categoryData, "id");
     await trx.commit();
 
-    req.io.emit("Update", { timeStamp: new Date().getTime() });
+    req.io.emit("Update", { update: categoryData });
 
-    return res.json({ Message: "success", categoryData });
+    return res.json({
+      categoryId: categoryId[0],
+      TotalProduct: 0,
+      categoryVisible: true,
+      name: categoryData.name,
+      image: pathImage,
+      image_url: `${process.env.HOST}/uploads/${categoryData.image}`,
+    });
   } catch (error) {
-    return res.json({ Message: "Erro", typeErro: error });
+    return res.json({ error: error.message });
   }
 });
 // Excluir uma categoria
@@ -77,10 +85,31 @@ router.post("/create", upload.single("image"), async (req, res) => {
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
 
+  // Excluir a image do servidor, pesquisando dados completos da categoria
+  const dataCategory = await connection("category")
+    .where("id", "=", id)
+    .first();
+
+  // Categoria localizada
+  if (typeof dataCategory !== "undefined") {
+    //Capturando o path do arquivo
+    const pathFile = path.resolve(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "uploads",
+      dataCategory.image
+    );
+
+    //Checar se o aquivo existe no servidor
+    if (fs.existsSync(pathFile)) {
+      dataCategory.image !== "default.jpg" && fs.unlinkSync(pathFile);
+    }
+  }
+  // Excluir dados da categoria do banco de dados
   const category = await connection("category").where("id", "=", id).delete();
-
   req.io.emit("Update", { update: category });
-
   return res.json({
     message: category ? "Excluído com sucesso" : "Falha na exclusão.",
   });
@@ -98,7 +127,8 @@ router.put("/visible/:name", async (req, res) => {
     categoryVisible: !category.categoryVisible,
   });
 
-  req.io.emit("Update", { timeStamp: new Date().getTime() });
+  // Emimitr sinal de atualização no banco novo produto
+  req.io.emit("Update", { update: Date.now() });
 
   return res.json({ success: Boolean(upgrade) });
 });
@@ -139,11 +169,11 @@ router.put("/:id", upload.single("image"), async (req, res) => {
 
     await connection("category").where("id", "=", id).update(categoryUpdate);
 
-    req.io.emit("Update", { timeStamp: new Date().getTime() });
+    req.io.emit("Update", { update: categoryUpdate });
 
     return res.json({ message: "Atualização realizada com sucesso" });
   } catch (error) {
-    return res.json({ Message: "Erro", typeErro: error });
+    return res.json({ message: "Erro", typeErro: error });
   }
 });
 

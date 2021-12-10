@@ -6,10 +6,18 @@ exports.up = async function (knex) {
     table.decimal("price", 6, 2).notNullable();
 
     table.integer("provider_id").notNullable();
-    table.foreign("provider_id").references("id").inTable("provider");
+    table
+      .foreign("provider_id")
+      .references("id")
+      .inTable("provider")
+      .onDelete("CASCADE");
 
     table.integer("product_id").notNullable();
-    table.foreign("product_id").references("id").inTable("product");
+    table
+      .foreign("product_id")
+      .references("id")
+      .inTable("product")
+      .onDelete("CASCADE");
   });
 };
 

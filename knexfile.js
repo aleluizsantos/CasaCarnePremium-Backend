@@ -4,7 +4,7 @@ const path = require("path");
 module.exports = {
   development: {
     client: "postgresql",
-    connection: process.env.DATABASE_URL,
+    connection: process.env.DATABASE_DEVELOPMENT,
     pool: {
       min: 2,
       max: 10,

@@ -3,7 +3,7 @@ exports.up = async function (knex) {
     table.increments("id").primary();
     table.string("name").notNullable().unique();
     table.boolean("categoryVisible").defaultTo(true);
-    table.string("image").defaultTo("default.png");
+    table.string("image").defaultTo("default.jpg");
   });
 };
 exports.down = async function (knex) {

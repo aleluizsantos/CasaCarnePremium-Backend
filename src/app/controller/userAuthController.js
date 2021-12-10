@@ -56,7 +56,7 @@ router.post("/register", async (req, res) => {
 // Autenticação de usuário
 // http://dominio/auth/authenticate
 router.post("/authenticate", async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, exponentPushToken } = req.body;
 
   if (email === "" || password === "")
     return res.status(401).send({ error: "Email ou senha em branco" });
@@ -66,12 +66,22 @@ router.post("/authenticate", async (req, res) => {
     .select("*")
     .first();
   //Verificação se o usuário esta cadastrado
-  if (user === undefined)
+  if (typeof user === "undefined")
     return res.status(401).send({ error: "Usuário não cadastrado" });
 
   // Verificação se passoword esta correto
   if (!(await bcrypt.compare(password, user.password)))
     return res.status(401).send({ error: "Senha incorreta" });
+
+  // Verificar se o usuário logou em um novo dispositivo
+  if (user.tokenPushNotification !== exponentPushToken) {
+    await connection("users")
+      .where("email", "=", email)
+      .update({
+        ...user,
+        tokenPushNotification: exponentPushToken,
+      });
+  }
 
   // Open-Close
   const openClose = await connection("operation").first().select("open_close");
@@ -81,7 +91,10 @@ router.post("/authenticate", async (req, res) => {
     .count("id as countRequest")
     .first();
   // Quantidade de usuário no sistema
-  const totalUsers = await connection("users").count("id as countUser").first();
+  const totalUsers = await connection("users")
+    .where("typeUser", "=", "user")
+    .count("id as countUser")
+    .first();
 
   // Retorno caso password estive correto retorna usuário e token
   return res.send({
@@ -91,6 +104,7 @@ router.post("/authenticate", async (req, res) => {
       email: user.email,
       phone: user.phone,
       typeUser: user.typeUser,
+      tokenPushNotification: exponentPushToken,
       blocked: user.blocked,
     },
     token: generateToken({ id: user.id }),
@@ -120,7 +134,7 @@ router.get("/checkToken/:token", async (req, res) => {
 router.get("/users", async (req, res) => {
   const users = await connection("users")
     .where("typeUser", "=", "user")
-    .leftJoin("addressUser", "users.id", "addressUser.user_id")
+    .join("addressUser", "users.id", "addressUser.user_id")
     .where("addressUser.active", "=", true)
     .select(
       "users.id",
@@ -225,7 +239,7 @@ router.delete("/userDelete/:id", async (req, res) => {
 router.put("/users/:id", async (req, res) => {
   const idUserLogin = req.userId;
   const { id } = req.params;
-  const { name, email, phone } = req.body;
+  const { name, email, phone, tokenPushNotification } = req.body;
   let statusUpgrade = false;
 
   try {
@@ -233,7 +247,7 @@ router.put("/users/:id", async (req, res) => {
     if (Number(idUserLogin) === Number(id)) {
       await connection("users")
         .where("id", "=", id)
-        .update({ name, email, phone });
+        .update({ name, email, phone, tokenPushNotification });
       statusUpgrade = true;
     }
 

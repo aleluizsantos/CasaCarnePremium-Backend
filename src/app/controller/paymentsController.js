@@ -4,15 +4,22 @@ const authMiddleware = require("../middleware/auth");
 
 const router = express.Router();
 
-router.use(authMiddleware);
-
 // Listar todas tipos de pagamentos ativos
 // http://dominio/payment
 router.get("/", async (req, res) => {
   const payment = await connection("payment")
     .where("active", "=", true)
     .select("*");
-  return res.json(payment);
+
+  const serialezePayment = payment.map((pay) => {
+    return {
+      id: pay.id,
+      type: pay.type,
+      image_url: `${process.env.HOST}/uploads/${pay.image}`,
+    };
+  });
+
+  return res.json(serialezePayment);
 });
 // Listar todas tipos de pagamentos ativos e desativados
 // http://dominio/payment/all
@@ -27,6 +34,8 @@ router.get("/:id", async (req, res) => {
   const payment = await connection("payment").where("id", "=", id).select("*");
   return res.json(payment);
 });
+
+router.use(authMiddleware);
 // Criar um tipo de pagamento
 // http://dominio/payment/create
 router.post("/create", async (req, res) => {

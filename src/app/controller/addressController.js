@@ -9,7 +9,6 @@ router.use(authMiddleware);
 // http://dominio/address
 router.get("/", async (req, res) => {
   const user_id = req.userId;
-
   // Verificação se o user_id foi passado
   if (!user_id) return res.json({ message: "Erro falta de identificação" });
 
@@ -22,6 +21,7 @@ router.get("/", async (req, res) => {
 // Listar criar um endereço de usuário
 // http://dominio/address
 router.post("/create", async (req, res) => {
+  const user_id = req.userId;
   const {
     cep,
     address,
@@ -33,7 +33,17 @@ router.post("/create", async (req, res) => {
     pointReference,
   } = req.body;
 
-  const user_id = req.userId;
+  const newAddress = {
+    address,
+    cep,
+    number,
+    neighborhood,
+    city,
+    uf,
+    active,
+    pointReference,
+    user_id: user_id,
+  };
 
   // Verificar se o usuário já cadastrou este endereço
   const addressExists = await connection("addressUser")
@@ -45,20 +55,11 @@ router.post("/create", async (req, res) => {
 
   if (!!addressExists) return res.json({ Error: "Endereço já existe." });
 
-  const addUser = await connection("addressUser").insert({
-    address,
-    cep,
-    number,
-    neighborhood,
-    city,
-    uf,
-    active,
-    pointReference,
-    user_id,
-  });
+  const addUser = await connection("addressUser").insert(newAddress, "id");
 
   return res.json({
-    Message: addUser ? "Criado com sucesso" : "Erro ao criar",
+    id: addUser[0],
+    ...newAddress,
   });
 });
 

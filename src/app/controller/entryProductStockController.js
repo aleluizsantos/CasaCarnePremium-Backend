@@ -1,5 +1,4 @@
 const express = require("express");
-const Yup = require("yup");
 
 const connection = require("../../database/connection");
 const authMiddleware = require("../middleware/auth");
@@ -31,8 +30,7 @@ router.get("/", async (req, res) => {
       "entryProductStock.*",
       "product.name",
       "product.image",
-      "product.price as priceSale",
-      "product.inventory as inventoryCurrent"
+      "product.price as priceSale"
     );
 
   return res.json({ totalentryProduct, productStock });

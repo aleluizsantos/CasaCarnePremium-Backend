@@ -2,7 +2,7 @@ const connection = require("../../database/connection");
 const express = require("express");
 const authMiddleware = require("../middleware/auth");
 const {
-  ValidationCoupon,
+  validationCoupon,
   GenerateCoupon,
 } = require("../utils/validationCupon");
 
@@ -16,7 +16,7 @@ router.get("/validation/:coupon", async (req, res) => {
   const { payment } = req.headers;
   const { coupon } = req.params;
 
-  const validateCoupon = await ValidationCoupon(coupon.toUpperCase(), payment);
+  const validateCoupon = await validationCoupon(coupon);
 
   return res.json(validateCoupon);
 });
@@ -35,7 +35,7 @@ router.get("/", async (req, res) => {
 // http://dominio/coupon
 router.post("/create", async (req, res) => {
   const user_id = req.userId; //Id do usuário recebido no token
-  const { paymentType, dataExpireCoupon, amount, discountAmount } = req.body;
+  const { dataExpireCoupon, amount, discountAmount } = req.body;
 
   // Buscar o tipo de usuário
   const user = await connection("users")
@@ -50,7 +50,6 @@ router.post("/create", async (req, res) => {
 
   const dataCoupon = {
     number: coupon,
-    paymentType,
     amount,
     dataExpireCoupon: new Date(dataExpireCoupon),
     discountAmount,

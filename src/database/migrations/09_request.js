@@ -16,7 +16,6 @@ exports.up = async function (knex) {
     table.string("city").notNullable();
     table.string("uf", 2).notNullable();
     table.string("PointReferences").nullable();
-    table.datetime("scheduleDateTime").nullable();
 
     table.integer("user_id").notNullable();
     table.foreign("user_id").references("id").inTable("users");

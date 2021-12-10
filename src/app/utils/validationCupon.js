@@ -3,42 +3,30 @@ const connection = require("../../database/connection");
 module.exports = {
   // Verificação se o cupom é valido se esta no prazo de validade e seu
   // respectiovos tipos de pagamento
-  async ValidationCoupon(coupon, payment) {
+  async validationCoupon(coupon) {
     const Coupon = await connection("coupon")
       .where("number", "=", coupon)
       .first();
+
     // Verificação se o cupom existe
-    if (Coupon === undefined)
-      return { Success: false, Message: "Cupom inválido" };
+    if (Coupon === undefined) return { error: "Cupom inválido" };
     // Verificar a data de validade do cupom
     const now = new Date();
     if (now > Coupon.dataExpireCoupon)
-      return { Success: false, Message: "Data de validade do cupom expirada" };
-    // Verificar para qual tipo de pagamento o Cupom é valido
-    // Converter a string em um ARRAY
-    const parsedPayment = String(Coupon.paymentType)
-      .split(",")
-      .map((paymentType) => Number(paymentType.trim()));
+      return { error: "Data de validade do cupom expirada" };
 
-    if (parsedPayment.indexOf(Number(payment)) < 0)
-      return {
-        Success: false,
-        Message: "Cupom inválido para este tipo de pagamento",
-      };
     // Verificar se a quantidade de cupom já foi toda utilizada
     const AmoutCoupon = await connection("request")
-      .where("coupon", coupon)
+      .where("coupon", "=", coupon)
       .select("*");
 
     // Comparar as quantidades
     if (AmoutCoupon.length > Coupon.amount)
-      return {
-        Success: false,
-        Message: "Cupom já utilizados",
-      };
+      return { error: "Cupom já foi utilizado" };
 
-    return { Success: true, Coupon };
+    return Coupon;
   },
+
   // Gerar um código de cupom
   async GenerateCoupon() {
     const letras = "123456789ABCDEFGHIJKLMNOPQRSTUVWXTZ";
