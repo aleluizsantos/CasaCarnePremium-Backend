@@ -317,7 +317,6 @@ router.post("/create", upload.single("image"), async (req, res) => {
     name: Yup.string().max(255).required("Nome obrigatório"),
     description: Yup.string().max(255),
     price: Yup.number().required(),
-    image: Yup.string(),
     promotion: Yup.boolean().required(),
     pricePromotion: Yup.number().required(),
     category_id: Yup.number().integer(),
@@ -359,6 +358,7 @@ router.post("/create", upload.single("image"), async (req, res) => {
       // Excluir somente se o arquivo não foi "default.jpg"
       nameImage !== "default.jpg" && fs.unlinkSync(pathFile);
     }
+    return res.json({ success: false, error: error.message });
   }
 });
 
