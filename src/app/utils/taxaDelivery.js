@@ -6,7 +6,7 @@ module.exports = {
    * tempo de entrega.
    * @param {number} typeDelivery_id Infomar o id do tipo de entrega
    * @param {number} totalPur Informar o total do pedido
-   * @returns {Object} { taxa: number, averageTime: string }
+   * @returns {object} Object { taxa: number, averageTime: string }
    */
   async checkTaxaDelivery(typeDelivery_id, totalPur) {
     const { hasTaxa, averageTime } = await getTypeDelivery(typeDelivery_id);
@@ -37,7 +37,7 @@ module.exports = {
   },
 
   /**
-   * Retorna um objeto contento o tipo de Delivery
+   * Retorna um objeto contento os tipos de Delivery
    * @param {number} typeDelivery_id Informe o id do tipo de delivery
    * @returns {object} { description, hasTaxa, averageTime  }
    */
@@ -46,7 +46,11 @@ module.exports = {
   },
 };
 
-// Buscar todos os dados do tipo de delivery passado
+/**
+ * Buscar todos os dados do tipo de delivery passado
+ * @param {number} typeDelivery_id Infomar o id do tipo de entrega
+ * @returns {object} Object { description, hasTaxa, averageTime }
+ */
 async function getTypeDelivery(typeDelivery_id) {
   const { description, hasTaxa, averageTime } = await connection("deliveryType")
     .where("id", "=", typeDelivery_id)
@@ -54,7 +58,10 @@ async function getTypeDelivery(typeDelivery_id) {
   return { description, hasTaxa, averageTime };
 }
 
-// Buscar no bando de dados o Valor da taxa e o valor mínimo de um pedido
+/**
+ * Buscar no bando de dados o Valor da taxa e o valor mínimo de um pedido
+ * @returns {object} Object { vMinTaxa, taxa }
+ */
 async function getTaxaDelivery() {
   const { vMinTaxa, taxa } = await connection("taxaDelivery").first();
   return { vMinTaxa, taxa };

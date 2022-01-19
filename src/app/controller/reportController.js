@@ -12,25 +12,32 @@ router.use(authMiddleware);
  * @returns Object { saleDay, totalSaleDay }
  */
 router.get("/saleDay", async (req, res) => {
+  const { dateCurrent } = req.query;
   const dateUTC = new Date();
 
-  const from = new Date(
-    dateUTC.valueOf() - dateUTC.getTimezoneOffset() * 60000
-  );
-  const to = dateFns.addDays(from, 1);
+  let dateStart;
+
+  if (typeof dateCurrent === "undefined") {
+    dateStart = new Date(
+      dateUTC.valueOf() - dateUTC.getTimezoneOffset() * 60000
+    );
+  } else {
+    dateStart = new Date(dateCurrent);
+  }
+
+  const dateEnd = dateFns.addDays(dateStart, 1);
 
   // formatar data no formato ISO 8601
-  let dateStart = from.getFullYear().toString() + "-";
-  dateStart += (from.getMonth() + 1).toString().padStart(2, "0") + "-";
-  dateStart += from.getDate().toString().padStart(2, "0") + "T03:00:00Z";
+  let from = dateStart.getFullYear().toString() + "-";
+  from += (dateStart.getMonth() + 1).toString().padStart(2, "0") + "-";
+  from += dateStart.getDate().toString().padStart(2, "0") + "T03:00:00Z";
 
-  let dateEnd = to.getFullYear().toString() + "-";
-  dateEnd += (to.getMonth() + 1).toString().padStart(2, "0") + "-";
-  dateEnd += to.getDate().toString().padStart(2, "0") + "T02:59:59Z";
+  let to = dateEnd.getFullYear().toString() + "-";
+  to += (dateEnd.getMonth() + 1).toString().padStart(2, "0") + "-";
+  to += dateEnd.getDate().toString().padStart(2, "0") + "T02:59:59Z";
 
   const saleDay = await connection("request")
-    .where("dateTimeOrder", ">", dateStart)
-    .where("dateTimeOrder", "<=", dateEnd)
+    .whereBetween("dateTimeOrder", [from, to])
     .select("dateTimeOrder", "totalPurchase");
 
   // total da vendo do dia
@@ -39,6 +46,7 @@ router.get("/saleDay", async (req, res) => {
   }, 0);
 
   return res.json({
+    date: dateStart,
     saleDay,
     totalSaleDay: totalSaleDay,
   });
@@ -246,6 +254,7 @@ router.get("/salePeriod", async (req, res) => {
 
 /**
  * Retoran os Top 10 dos cliente, Produtos, tipo Pagamento e tipo de entrega
+ * @returns {object} {top10Client, top10Product, topPayDelivery, topDelivery}
  */
 router.get("/top10", async (req, res) => {
   // Top 10 do melhores cliente

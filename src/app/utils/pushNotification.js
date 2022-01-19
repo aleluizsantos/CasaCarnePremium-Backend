@@ -25,11 +25,15 @@ const pushNotification = async (token, title, msg) => {
 };
 
 module.exports = {
-  // Push Notification: usuário específico
-  async pushNotificationUser(userId, msg) {
+  /**
+   * Push Notification: usuário específico
+   * @param {numer} userId Identificação do usuário
+   * @param {string} msg Mensagem para ser enviada
+   */
+  async pushNotificationUser(userId, title = "", message) {
     const user = await connection("users").where("id", "=", userId).first();
     const { tokenPushNotification } = user;
-    pushNotification(tokenPushNotification, msg);
+    pushNotification(tokenPushNotification, title, message);
   },
   /**
    * Push Notifivication grupo de usuários

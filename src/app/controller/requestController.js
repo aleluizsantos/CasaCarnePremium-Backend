@@ -3,6 +3,7 @@ const express = require("express");
 const authMiddleware = require("../middleware/auth");
 const { validationCoupon } = require("../utils/validationCupon");
 const { pushNotificationUser } = require("../utils/pushNotification");
+const { checkTaxaDelivery } = require("../utils/taxaDelivery");
 
 const router = express.Router();
 
@@ -107,11 +108,19 @@ router.get("/", async (req, res) => {
         "deliveryType.description As deliveryType",
         "statusRequest.description As statusRequest",
         "statusRequest.BGcolor",
-        "payment.type As payment"
+        "payment.type As payment",
+        "payment.image as imgTypePayment"
       )
       .orderBy("request.dateTimeOrder", "desc");
 
-    return res.json(request);
+    const serialezeOrder = request.map((order) => {
+      return {
+        ...order,
+        imgTypePayment: `${process.env.HOST}/uploads/${order.imgTypePayment}`,
+      };
+    });
+
+    return res.json(serialezeOrder);
   } else {
     //Listagem para usuário comum - APENAS PEDIDO DELE
     const request = await connection("request")
@@ -125,7 +134,8 @@ router.get("/", async (req, res) => {
         "deliveryType.description As deliveryType",
         "statusRequest.description As statusRequest",
         "statusRequest.BGcolor",
-        "payment.type As payment"
+        "payment.type As payment",
+        "payment.image as imgTypePayment"
       )
       .orderBy("request.id", "desc");
 
@@ -187,23 +197,22 @@ router.post("/create", async (req, res) => {
 
     let vDiscount = 0;
 
-    //Verificação do cupom, autenticidade e validade
+    // Verificação do cupom, autenticidade e validade
     if (coupon !== "") {
       const vcoupon = await validationCoupon(coupon);
       vDiscount = vcoupon.error ? 0 : Number(vcoupon.discountAmount);
     }
 
-    //Converter a string que contém o itens adicionais
-    const itemsAdditional = items.map((item, idx) => {
-      const additional = item.additionItem.split(",");
-      return additional;
-    });
-    // converter a String do additional em apenas um array
+    // Converter a string que contém o itens adicionais
+    const itemsAdditional = items.map((item) => item.additionItem.split(","));
+
+    // Converter a String do additional em apenas um array
     const listIdAdditional = itemsAdditional
       .toString()
       .split(",")
       .map((item) => Number(item));
 
+    // Somar todos os adicionais escolhido pelo usuário
     const totalAdditional = await connection("additional")
       .whereIn("id", listIdAdditional)
       .sum("price as total")
@@ -212,22 +221,17 @@ router.post("/create", async (req, res) => {
     // Acrescentar o total dos adicionais
     totalPur += Number(totalAdditional.total);
 
-    // Checando a taxa de entrega
-    const { vMinTaxa, taxa } = await connection("taxaDelivery").first();
+    // Checando a taxa de entrega e o tempo médio
+    const { taxa, averageTime } = await checkTaxaDelivery(
+      deliveryType_id,
+      totalPur
+    );
 
-    // Verificar a taxa de entrega - Retirada na loja não existe taxa de entrega
-    let vTaxaDelivery = 0;
-    if (deliveryType_id === 1) {
-      //se for delivery verificar a taxa
-      vTaxaDelivery =
-        totalPur >= vMinTaxa && vMinTaxa === 0 ? 0 : parseFloat(taxa);
-    }
-
-    // montar os dados do pedido para ser inseridos
+    // Montar os dados do pedido para ser inseridos
     const request = {
       dateTimeOrder: dataCurrent,
-      totalPurchase: vTaxaDelivery + totalPur - vDiscount,
-      vTaxaDelivery: vTaxaDelivery,
+      totalPurchase: taxa + totalPur - vDiscount,
+      vTaxaDelivery: taxa,
       coupon,
       discount: vDiscount,
       note,
@@ -242,15 +246,16 @@ router.post("/create", async (req, res) => {
       statusRequest_id: Number(statusRequest_id),
       payment_id: Number(payment_id),
       cash: cash || 0,
-      timeDelivery: timeDelivery || "60-80 min",
+      timeDelivery: timeDelivery || averageTime,
     };
 
     const trx = await connection.transaction();
-    //Inserir o pedido
+
+    // Inserir o pedido
     const insertReq = await trx("request").insert(request, "id");
     // Capturar o id de do pedido que acabou de ser inserido
     const request_id = insertReq[0];
-    // montar os dados do itens do pedido para ser inseridos
+    // Montar os dados do itens do pedido para ser inseridos
     const itemsRequest = dataItems.map((item) => {
       return {
         amount: Number(item.amount),
@@ -261,10 +266,10 @@ router.post("/create", async (req, res) => {
       };
     });
 
-    //Inserir os items do pedido retornando todos os id dos items
+    // Inserir os items do pedido retornando todos os id dos items
     const idItemsInsert = await trx("itemsRequets").insert(itemsRequest, "id");
 
-    // // Criar um array vazio para ser inserido os itens adicionais para serem inseridos
+    // Criar um array vazio para ser inserido os itens adicionais para serem inseridos
     let insertItemAddicional = [];
 
     // Para cada itens inserido, inserir o addicionais no banco
@@ -283,26 +288,28 @@ router.post("/create", async (req, res) => {
       }
     });
 
-    // Inserir os items dos adicionais
+    // Inserir os adicionais de cada item
     await trx("additionalItemOrder").insert(insertItemAddicional);
 
     // Efetivar a gravação se tudo ocorrer com sucesso na inserção do pedido e
     // dos itens casos contrário desfaça tudo
     await trx.commit();
-    // contar todos os pedidos em anlise
+
+    // Contar todos os pedidos em anlise
     const ordersAnalize = await connection("request")
       .count("statusRequest_id as countReq")
       .where("statusRequest_id", "=", 1)
       .first();
-    // emitir aviso que foi creado um no Pedido
+
+    // Emitir aviso que foi criado um no Pedido
     // retornando a quantidade de pedidos em analise
     req.io.emit("CreateOrder", {
       newOrder: ordersAnalize,
     });
+
     // Retorna o Pedido e os itens
     return res.json({ request, itemsRequest });
   } catch (error) {
-    console.log(error);
     return res.status(500).json({ error: error.message });
   }
 });
@@ -335,20 +342,13 @@ router.put("/itemChanger", async (req, res) => {
   const { myOrder, items } = req.body;
 
   try {
-    // Altarar a Tabela pedido 'request'
-    await connection("request").where("id", "=", myOrder.id).update({
-      vTaxaDelivery: myOrder.taxaDelivery,
-      totalPurchase: myOrder.totalPurchase,
-      discount: myOrder.discount,
-    });
-
     // Buscar todos os item do pedido
-    const itemCurrent = await connection("itemsRequets")
+    const itemOrderCurrent = await connection("itemsRequets")
       .where("request_id", "=", myOrder.id)
       .select("*");
 
     // Percorrer todo array da Tabela itemPedido checando se houve alteração na quantidade
-    itemCurrent.forEach(async (itemCurrent) => {
+    itemOrderCurrent.forEach(async (itemCurrent) => {
       const changeItem = items.find(
         (itemChange) => itemChange.product_id === itemCurrent.product_id
       );
@@ -361,14 +361,22 @@ router.put("/itemChanger", async (req, res) => {
       }
     });
 
+    // Calcular o novo valor do pedido após incluir um item
+    const result = await calcMyOrder(myOrder.id);
+
+    // Altarar a Tabela pedido 'request'
+    await connection("request")
+      .where("id", "=", myOrder.id)
+      .update(result.dataOrder);
+
     // Checar se houve alteraçaõ na quantidade notificar cliente
     if (changerAmount)
       pushNotificationUser(
         myOrder.user_id,
-        "Houve alteração em seu pedido, verifique as alterações em seu app."
+        "Produtos pesados, confira o valor e a pesagem em seu app."
       );
 
-    return res.status(200).json(true);
+    return res.status(200).json(result.dataOrder);
   } catch (error) {
     console.log(error.message);
     return res.json({ error: error.message });
